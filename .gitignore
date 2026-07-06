@@ -4,3 +4,5 @@ __pycache__/
 venv/
 benchmark/repos/
 benchmark/analyze_*.log
+DISCLOSURE.md
+LINKEDIN_DRAFT.md
