@@ -1,0 +1,3 @@
+# impact_audited.py needs only the Python standard library.
+# tiktoken is OPTIONAL — install it to see approximate token cost per query.
+tiktoken>=0.7.0
