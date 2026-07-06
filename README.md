@@ -49,7 +49,7 @@ is worth wiring in. Full method + caveats: [`benchmark/RESULTS.md`](benchmark/RE
 Single file, standard library only. `tiktoken` is optional (token accounting).
 
 ```bash
-curl -O https://raw.githubusercontent.com/USER/impact-audited/main/impact_audited.py
+curl -O https://raw.githubusercontent.com/klmtseng/impact-audited/main/impact_audited.py
 chmod +x impact_audited.py
 pip install tiktoken   # optional
 ```
