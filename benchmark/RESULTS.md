@@ -31,8 +31,9 @@ include the **core** of the library:
 
 All dropped files are **under** the 512 KB size cap (largest: `history.py`, 167 KB
 / 3,405 lines). They are simply the larger / more complex modules — consistent
-with a tree-sitter scope-extraction bug, not a documented size limit. **codebase-
-memory-mcp indexed every file on both repos** with no such failures.
+with a tree-sitter scope-extraction bug, not a documented size limit. In my
+runs, **codebase-memory-mcp indexed every file on both repos** with no such
+failures (this comparison is not automated in `reproduce.sh`).
 
 ## Finding 2 — that makes impact answers provably incomplete
 

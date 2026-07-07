@@ -11,12 +11,15 @@ declare -A REPOS=(
 )
 declare -A SRC=( [requests]="src" [yfinance]="yfinance" )
 
+# Note: clones the current default branch. RESULTS.md numbers were measured at
+# the commits pinned there (requests 23953c0, yfinance 38c73ce); exact counts
+# drift as upstream moves — the pattern is what should reproduce.
 for name in "${!REPOS[@]}"; do
   [ -d "$name" ] || git clone --depth 1 -q "${REPOS[$name]}" "$name"
   echo "=== indexing $name with GitNexus ==="
   gitnexus analyze "$PWD/$name" --force --skip-agents-md --name "bench-$name" \
     > "../analyze_$name.log" 2>&1 || true
-  grep -c 'scope extraction failed' "../analyze_$name.log" \
+  (grep -c 'scope extraction failed' "../analyze_$name.log" || true) \
     | xargs echo "  files GitNexus dropped:"
   echo "=== scanning contamination for $name ==="
   python3 ../scan_contamination.py "$PWD/$name" "../analyze_$name.log" "${SRC[$name]}"
