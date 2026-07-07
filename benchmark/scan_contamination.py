@@ -2,9 +2,18 @@
 """Quantify how many symbols' impact answers a graph indexer must under-report,
 attributed only to files the indexer's OWN log says it failed to parse.
 
-Airtight by construction: a symbol counts as "provably incomplete" only if grep
-finds it called inside a file the indexer reported dropping — so that dependency
-edge cannot be in the graph, regardless of grep's precision elsewhere.
+Definition lines are never counted as call sites (`def sym(` / `class sym(`
+are excluded), so a symbol merely *defined* in a dropped file does not count.
+
+Two tiers are reported:
+
+  strict — the symbol is DEFINED in a file the indexer kept, but has a real
+           call site inside a dropped file. The graph contains the node but
+           cannot contain that edge → the impact answer is silently
+           incomplete, guaranteed.
+  broad  — any symbol with a real call site inside a dropped file, including
+           symbols defined in dropped files (there, tool behavior varies:
+           some answer incompletely, some fail loudly; treat as upper bound).
 
 Usage:
   python scan_contamination.py <repo_path> <analyze_log> <src_subdir> \
@@ -32,34 +41,48 @@ def main():
     dropped_core = {f for f in dropped
                     if "test" not in f.lower() and not f.endswith("__init__.py")}
 
-    names = set()
-    for line in sh(f"grep -rhoE '^(def|class) ([A-Za-z_][A-Za-z0-9_]+)' --include=*.py {a.src}", repo).splitlines():
-        n = line.split()[-1]
-        if not n.startswith("__") and len(n) >= 4:
-            names.add(n)
+    # symbol -> definition files
+    defs = {}
+    for line in sh(f"grep -rnE '^(def|class) ([A-Za-z_][A-Za-z0-9_]+)' --include=*.py {a.src}", repo).splitlines():
+        m = re.match(r"([^:]+):\d+:(?:def|class)\s+([A-Za-z_][A-Za-z0-9_]+)", line)
+        if m and len(m.group(2)) >= 4 and not m.group(2).startswith("__"):
+            defs.setdefault(m.group(2), set()).add(m.group(1).lstrip("./"))
 
-    hits, total = [], 0
-    for n in sorted(names):
-        gr = sh(f"grep -rlE '\\b{re.escape(n)}\\s*\\(' --include=*.py .", repo)
-        callers = {ln.lstrip("./") for ln in gr.splitlines() if ln}
-        callers = {f for f in callers if os.path.exists(os.path.join(repo, f))}
+    tiers = {"strict": {"total": 0, "hits": []}, "broad": {"total": 0, "hits": []}}
+    for n, deffiles in sorted(defs.items()):
+        esc = re.escape(n)
+        callers = set()
+        for line in sh(f"grep -rnE '\\b{esc}\\s*\\(' --include=*.py .", repo).splitlines():
+            parts = line.split(":", 2)
+            if len(parts) < 3:
+                continue
+            fp, text = parts[0].lstrip("./"), parts[2]
+            if re.search(rf"\b(def|class)\s+{esc}\b", text):
+                continue  # a definition line is not a call site
+            if os.path.exists(os.path.join(repo, fp)):
+                callers.add(fp)
         if not callers:
             continue
-        total += 1
         inside_dropped = sorted(callers & dropped_core)
+        tiers["broad"]["total"] += 1
         if inside_dropped:
-            hits.append((n, inside_dropped))
+            tiers["broad"]["hits"].append((n, inside_dropped))
+        if not (deffiles & dropped):  # node is in the graph
+            tiers["strict"]["total"] += 1
+            if inside_dropped:
+                tiers["strict"]["hits"].append((n, inside_dropped))
 
-    pct = 100 * len(hits) / max(total, 1)
     print(f"\n== {os.path.basename(repo)} ==")
     print(f"dropped core files ({len(dropped_core)}): {sorted(dropped_core)}")
-    print(f"symbols with callers: {total}")
-    print(f"provably-incomplete impact answers: {len(hits)} ({pct:.0f}%)")
-    print(f"examples: {hits[:8]}")
-    out = os.path.join(os.path.dirname(__file__), f"results_{os.path.basename(repo)}.json")
-    json.dump({"repo": os.path.basename(repo), "dropped_core": sorted(dropped_core),
-               "total": total, "incomplete": len(hits), "pct": round(pct),
-               "examples": hits[:20]}, open(out, "w"), ensure_ascii=False, indent=2)
+    out = {"repo": os.path.basename(repo), "dropped_core": sorted(dropped_core)}
+    for tier, d in tiers.items():
+        n, tot = len(d["hits"]), d["total"]
+        pct = 100 * n / max(tot, 1)
+        print(f"[{tier}] symbols considered: {tot} | provably-incomplete impact answers: {n} ({pct:.0f}%)")
+        print(f"        examples: {d['hits'][:6]}")
+        out[tier] = {"total": tot, "incomplete": n, "pct": round(pct), "examples": d["hits"][:15]}
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"results_{os.path.basename(repo)}.json")
+    json.dump(out, open(path, "w"), ensure_ascii=False, indent=2)
 
 
 if __name__ == "__main__":

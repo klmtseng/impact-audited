@@ -5,134 +5,204 @@
     "src/requests/sessions.py",
     "src/requests/utils.py"
   ],
-  "total": 113,
-  "incomplete": 79,
-  "pct": 70,
-  "examples": [
-    [
-      "CaseInsensitiveDict",
+  "strict": {
+    "total": 56,
+    "incomplete": 28,
+    "pct": 50,
+    "examples": [
       [
-        "src/requests/models.py",
-        "src/requests/utils.py"
-      ]
-    ],
-    [
-      "ChunkedEncodingError",
+        "CaseInsensitiveDict",
+        [
+          "src/requests/models.py",
+          "src/requests/utils.py"
+        ]
+      ],
       [
-        "src/requests/models.py"
-      ]
-    ],
-    [
-      "ConnectionError",
+        "ChunkedEncodingError",
+        [
+          "src/requests/models.py"
+        ]
+      ],
       [
-        "src/requests/models.py"
-      ]
-    ],
-    [
-      "ContentDecodingError",
+        "ConnectionError",
+        [
+          "src/requests/models.py"
+        ]
+      ],
       [
-        "src/requests/models.py"
-      ]
-    ],
-    [
-      "HTTPAdapter",
+        "ContentDecodingError",
+        [
+          "src/requests/models.py"
+        ]
+      ],
       [
-        "src/requests/sessions.py"
-      ]
-    ],
-    [
-      "HTTPBasicAuth",
+        "HTTPAdapter",
+        [
+          "src/requests/sessions.py"
+        ]
+      ],
       [
-        "src/requests/models.py"
-      ]
-    ],
-    [
-      "HTTPError",
+        "HTTPBasicAuth",
+        [
+          "src/requests/models.py"
+        ]
+      ],
       [
-        "src/requests/models.py"
-      ]
-    ],
-    [
-      "InvalidHeader",
+        "HTTPError",
+        [
+          "src/requests/models.py"
+        ]
+      ],
       [
-        "src/requests/utils.py"
-      ]
-    ],
-    [
-      "InvalidJSONError",
+        "InvalidHeader",
+        [
+          "src/requests/utils.py"
+        ]
+      ],
       [
-        "src/requests/models.py"
-      ]
-    ],
-    [
-      "InvalidSchema",
+        "InvalidJSONError",
+        [
+          "src/requests/models.py"
+        ]
+      ],
       [
-        "src/requests/sessions.py"
-      ]
-    ],
-    [
-      "InvalidURL",
+        "InvalidSchema",
+        [
+          "src/requests/sessions.py"
+        ]
+      ],
       [
-        "src/requests/models.py",
-        "src/requests/utils.py"
-      ]
-    ],
-    [
-      "MissingSchema",
+        "InvalidURL",
+        [
+          "src/requests/models.py",
+          "src/requests/utils.py"
+        ]
+      ],
       [
-        "src/requests/models.py"
-      ]
-    ],
-    [
-      "PreparedRequest",
+        "MissingSchema",
+        [
+          "src/requests/models.py"
+        ]
+      ],
       [
-        "src/requests/models.py",
-        "src/requests/sessions.py"
-      ]
-    ],
-    [
-      "Request",
+        "RequestsCookieJar",
+        [
+          "src/requests/sessions.py"
+        ]
+      ],
       [
-        "src/requests/models.py",
-        "src/requests/sessions.py"
-      ]
-    ],
-    [
-      "RequestsCookieJar",
+        "StreamConsumedError",
+        [
+          "src/requests/models.py"
+        ]
+      ],
       [
-        "src/requests/sessions.py"
-      ]
-    ],
-    [
-      "Session",
-      [
-        "src/requests/models.py",
-        "src/requests/sessions.py"
-      ]
-    ],
-    [
-      "StreamConsumedError",
-      [
-        "src/requests/models.py"
-      ]
-    ],
-    [
-      "TooManyRedirects",
-      [
-        "src/requests/sessions.py"
-      ]
-    ],
-    [
-      "UnrewindableBodyError",
-      [
-        "src/requests/utils.py"
-      ]
-    ],
-    [
-      "_basic_auth_str",
-      [
-        "src/requests/sessions.py"
+        "TooManyRedirects",
+        [
+          "src/requests/sessions.py"
+        ]
       ]
     ]
-  ]
+  },
+  "broad": {
+    "total": 99,
+    "incomplete": 63,
+    "pct": 64,
+    "examples": [
+      [
+        "CaseInsensitiveDict",
+        [
+          "src/requests/models.py",
+          "src/requests/utils.py"
+        ]
+      ],
+      [
+        "ChunkedEncodingError",
+        [
+          "src/requests/models.py"
+        ]
+      ],
+      [
+        "ConnectionError",
+        [
+          "src/requests/models.py"
+        ]
+      ],
+      [
+        "ContentDecodingError",
+        [
+          "src/requests/models.py"
+        ]
+      ],
+      [
+        "HTTPAdapter",
+        [
+          "src/requests/sessions.py"
+        ]
+      ],
+      [
+        "HTTPBasicAuth",
+        [
+          "src/requests/models.py"
+        ]
+      ],
+      [
+        "HTTPError",
+        [
+          "src/requests/models.py"
+        ]
+      ],
+      [
+        "InvalidHeader",
+        [
+          "src/requests/utils.py"
+        ]
+      ],
+      [
+        "InvalidJSONError",
+        [
+          "src/requests/models.py"
+        ]
+      ],
+      [
+        "InvalidSchema",
+        [
+          "src/requests/sessions.py"
+        ]
+      ],
+      [
+        "InvalidURL",
+        [
+          "src/requests/models.py",
+          "src/requests/utils.py"
+        ]
+      ],
+      [
+        "MissingSchema",
+        [
+          "src/requests/models.py"
+        ]
+      ],
+      [
+        "PreparedRequest",
+        [
+          "src/requests/models.py",
+          "src/requests/sessions.py"
+        ]
+      ],
+      [
+        "Request",
+        [
+          "src/requests/models.py",
+          "src/requests/sessions.py"
+        ]
+      ],
+      [
+        "RequestsCookieJar",
+        [
+          "src/requests/sessions.py"
+        ]
+      ]
+    ]
+  }
 }

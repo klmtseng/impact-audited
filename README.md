@@ -30,14 +30,16 @@ checked every top-level symbol's reported callers against grep ground truth:
 
 | Repo | Core files the graph indexer silently dropped | Symbols whose impact answer is provably incomplete |
 |---|---|---|
-| [`psf/requests`](https://github.com/psf/requests) | `models.py`, `sessions.py`, `utils.py` | **70%** (79 / 113) |
-| [`ranaroussi/yfinance`](https://github.com/ranaroussi/yfinance) | `const.py`, `scrapers/history.py`, `scrapers/quote.py`, `utils.py` | **45%** (52 / 116) |
+| [`psf/requests`](https://github.com/psf/requests) | `models.py`, `sessions.py`, `utils.py` | **50%** (28/56 strict; 64% broad) |
+| [`ranaroussi/yfinance`](https://github.com/ranaroussi/yfinance) | `const.py`, `scrapers/history.py`, `scrapers/quote.py`, `utils.py` | **12%** (7/59 strict; 39% broad) |
 
-Attribution is airtight: each "incomplete" symbol is one that grep finds called
-*inside a file the indexer's own logs report it failed to parse* — so that
-dependency edge cannot be in the graph. Example: `requests.utils.to_key_val_list`
-is reported as **LOW risk, one caller (`utils.py`)** — but `models.py` and
-`sessions.py`, the heart of the library, both call it.
+Attribution is airtight: a symbol counts (strict tier) only when its definition
+lives in a file the indexer *kept* but grep finds a real call site — definition
+lines excluded — *inside a file the indexer's own logs report it failed to
+parse*. The node is in the graph; that edge cannot be. Example:
+`requests.utils.to_key_val_list` is reported as **LOW risk, one caller
+(`utils.py`)** — but `models.py` and `sessions.py`, the heart of the library,
+both call it.
 
 Note the fairness bar: **codebase-memory-mcp indexed every file on both repos
 and had no such gap.** This isn't "all graph tools lie" — it's that *some do,
