@@ -36,22 +36,32 @@ memory-mcp indexed every file on both repos** with no such failures.
 
 ## Finding 2 — that makes impact answers provably incomplete
 
-For every top-level symbol, we ask: does grep find a direct call site **inside a
-file GitNexus's own logs admit it dropped**? If yes, that dependency edge cannot
-be in the graph, so `impact` is guaranteed to under-report.
+For every top-level symbol, we ask: does grep find a **real call site**
+(definition lines excluded — `def sym(` / `class sym(` do not count) inside a
+file GitNexus's own logs admit it dropped? If yes, that dependency edge cannot
+be in the graph. Two tiers, from bulletproof to upper bound:
 
-| Repo | Symbols with callers | Provably-incomplete impact answers |
+- **strict** — the symbol is *defined in a file the indexer kept*, but has a
+  call site inside a dropped file. The graph contains the node but cannot
+  contain that edge → the impact answer is silently incomplete, guaranteed.
+- **broad** — any symbol with a call site inside a dropped file, including
+  symbols defined in dropped files. There, tool behavior varies (some queries
+  still answer, incompletely; some fail loudly), so read it as an upper bound.
+
+| Repo | strict: incomplete / considered | broad: incomplete / considered |
 |---|---|---|
-| requests | 113 | **79 (70%)** |
-| yfinance | 116 | **52 (45%)** |
+| requests | **28 / 56 (50%)** | 63 / 99 (64%) |
+| yfinance | **7 / 59 (12%)** | 39 / 99 (39%) |
 
 This attribution needs no assumption about grep precision — it counts only
-symbols referenced in files the tool itself reported failing to parse.
+symbols with call sites in files the tool itself reported failing to parse.
 
 Hand-verified false negatives (the failure you'd actually hit):
 
 - `requests.utils.to_key_val_list` → GitNexus: **risk=LOW, 1 caller (`utils.py`)**.
-  Reality: also called in `models.py` and `sessions.py` (library core).
+  Reality: also called in `models.py` and `sessions.py` (library core). Note this
+  symbol is *defined* in a dropped file (broad tier) — and the tool still answered
+  rather than failing loudly, which is why the broad tier is worth reporting.
 - `requests.adapters.HTTPAdapter` → GitNexus omits its use in `sessions.py`.
 - `yfinance.utils.camel2title` → GitNexus omits its use in `base.py`.
 
@@ -67,11 +77,15 @@ tokens per query (grep output + graph output).
 
 - Two repos, one language, one question type (direct-caller impact). A probe with
   airtight attribution, not an exhaustive benchmark.
+- Earlier iterations of this scan counted definition lines as call sites, which
+  inflated the headline numbers (requests 70%, yfinance 45%). The current
+  two-tier numbers exclude definition lines; the correction is kept here for
+  transparency.
 - Tool versions GitNexus 1.6.3 / codebase-memory-mcp 0.8.1 (2026-06). May be fixed
   upstream — the transferable result is the *pattern*, not a verdict on a product.
 - grep covers direct callers only, not transitive impact and not semantic queries.
-- The aggregate "70% / 45%" is the share of symbols whose impact answer must be
-  incomplete; it is not a claim about any single query's severity.
+- The aggregate percentages are the share of symbols whose impact answer must be
+  incomplete; they are not a claim about any single query's severity.
 
 ## Reproduce
 
