@@ -28,7 +28,7 @@ I ran a graph-based impact tool (GitNexus 1.6.3) and a knowledge-graph MCP
 (codebase-memory-mcp 0.8.1) over two widely-used public Python libraries, then
 checked every top-level symbol's reported callers against grep ground truth:
 
-| Repo | Core files the graph indexer silently dropped | Symbols whose impact answer is provably incomplete |
+| Repo | Core files the graph indexer silently dropped | Impact answers provably incomplete (strict) / affected (broad upper bound) |
 |---|---|---|
 | [`psf/requests`](https://github.com/psf/requests) | `models.py`, `sessions.py`, `utils.py` | **50%** (28/56 strict; 64% broad) |
 | [`ranaroussi/yfinance`](https://github.com/ranaroussi/yfinance) | `const.py`, `scrapers/history.py`, `scrapers/quote.py`, `utils.py` | **12%** (7/59 strict; 39% broad) |
@@ -39,12 +39,16 @@ lines excluded — *inside a file the indexer's own logs report it failed to
 parse*. The node is in the graph; that edge cannot be. Example:
 `requests.utils.to_key_val_list` is reported as **LOW risk, one caller
 (`utils.py`)** — but `models.py` and `sessions.py`, the heart of the library,
-both call it.
+both call it. (That symbol is itself *defined* in a dropped file, i.e. broad
+tier — and the tool still answered rather than failing loudly, which is exactly
+why the broad tier is worth reporting.)
 
-Note the fairness bar: **codebase-memory-mcp indexed every file on both repos
-and had no such gap.** This isn't "all graph tools lie" — it's that *some do,
-silently, and you usually can't tell which*. That's exactly why a cheap audit
-is worth wiring in. Full method + caveats: [`benchmark/RESULTS.md`](benchmark/RESULTS.md).
+Note the fairness bar: in my runs, **codebase-memory-mcp indexed every file on
+both repos with no such gap** (this comparison isn't automated in the reproduce
+script, which covers the GitNexus side). So this isn't "all graph tools lie" —
+it's that *some can skip files silently, and you usually can't tell which*.
+That's exactly why a cheap audit is worth wiring in. Full method + caveats:
+[`benchmark/RESULTS.md`](benchmark/RESULTS.md).
 
 ## Install
 
@@ -75,8 +79,10 @@ pip install tiktoken   # optional
 ```
 
 Exit code `0` = audit passed (or no graph tool given); `2` = the graph tool
-omitted a direct caller grep found — its impact answer is incomplete. Wire it
-into CI or an agent loop to fail loudly on silent index gaps.
+omitted a direct caller grep found — its impact answer is incomplete; `3` = the
+graph backend produced no output (missing tool / wrong command), reported as an
+error rather than an omission. Wire it into CI or an agent loop to fail loudly
+on silent index gaps.
 
 ## What it does and doesn't cover
 

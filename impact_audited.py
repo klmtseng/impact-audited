@@ -26,17 +26,15 @@ Usage:
   impact_audited.py SYMBOL --path /repo --graph 'other-tool trace {sym} --json'
 
 Exit codes: 0 = audit passed (or no graph tool given); 2 = graph tool omitted a
-direct caller that grep found (its impact answer is incomplete).
+direct caller that grep found (its impact answer is incomplete); 3 = the graph
+backend produced no output (missing tool / wrong command) — reported as an
+error, never counted as an omission.
 
 Optional: `pip install tiktoken` to see approximate token cost per query.
 """
 import argparse, json, os, re, shlex, subprocess, sys
 
 PYFILE = re.compile(r'[\w./-]+\.py')
-
-
-def sh(cmd, cwd):
-    return subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True).stdout
 
 
 def count_tokens(s):
@@ -54,11 +52,25 @@ def files_in_text(text, root):
 
 
 def grep_caller_files(sym, root):
-    """Ground-truth direct callers: files with a `sym(` call site, minus the def line."""
+    """Ground-truth direct callers: files with a real `sym(` call site.
+    Definition lines (`def sym(` / `class sym(`) are not call sites.
+    grep runs without a shell (arg list), so the symbol never touches shell syntax."""
     esc = re.escape(sym)
-    out = sh(f"grep -rnE '\\b{esc}\\s*\\(' --include=*.py . | grep -vE 'def {esc}\\b'", root)
-    files = {ln.split(":", 1)[0].lstrip("./") for ln in out.splitlines() if ln}
-    return {f for f in files if os.path.exists(os.path.join(root, f))}, out
+    proc = subprocess.run(
+        ["grep", "-rnE", rf"\b{esc}\s*\(", "--include=*.py", "."],
+        cwd=root, capture_output=True, text=True)
+    files, kept = set(), []
+    for ln in proc.stdout.splitlines():
+        parts = ln.split(":", 2)
+        if len(parts) < 3:
+            continue
+        fp, text = parts[0].lstrip("./"), parts[2]
+        if re.search(rf"\b(def|class)\s+{esc}\b", text):
+            continue
+        if os.path.exists(os.path.join(root, fp)):
+            files.add(fp)
+            kept.append(ln)
+    return files, "\n".join(kept)
 
 
 def main():
@@ -78,7 +90,15 @@ def main():
 
     graph_files, graph_raw, missed = None, "", []
     if a.graph:
-        graph_raw = sh(a.graph.replace("{sym}", shlex.quote(sym)), root)
+        proc = subprocess.run(a.graph.replace("{sym}", shlex.quote(sym)),
+                              shell=True, cwd=root, capture_output=True, text=True)
+        graph_raw = proc.stdout
+        if not graph_raw.strip():
+            print(f"impact-audited  «{sym}»\n"
+                  f"  ⚠ graph backend produced no output (exit {proc.returncode})."
+                  " Is the tool installed and the --graph command correct?"
+                  " Not counting this as an omission.", file=sys.stderr)
+            sys.exit(3)
         graph_files = files_in_text(graph_raw, root)
         missed = sorted(grep_files - graph_files)
 
