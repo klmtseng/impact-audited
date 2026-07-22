@@ -38,3 +38,21 @@
 
 1. issue 草稿刪除 FTS「permanently unavailable」段(C7 撤回)。
 2. 草稿重現指令與說明補 epistemic:"exact" 與 direct=2=測試函式 細節(強化)。
+
+---
+
+## 第 2 段:獨立 reviewer(opus,fresh context)結果
+
+- **P1:0**。issue 草稿三宣稱逐字實跑重現(含 epistemic:"exact"、direct=2=測試函式、ambiguous 3 候選、行號引文比對)。
+- **P2:2(均主線重現後修復,commit 1935d7a)**:
+  1. grep floor 不剪 node_modules/target/.venv 而 detect_langs 剪 → vendored 呼叫點造成假 AUDIT FAILED。修:PRUNE_DIRS 共用 + grep --exclude-dir。
+  2. files_in_text 丟絕對路徑 → 印絕對路徑的 backend 全數誤判 omitted。修:realpath 正規化為 root-relative,root 外忽略;連帶補相對路徑 normpath 與 ../ 防護。
+- **P3:4**(trailing comment 未排除=文件已如實揭露;TS interface 簽名過近似;README「found 3」無假陽性 caveat 已修;#2604/#2508 狀態 reviewer 無網未核,主線已於審前以 gh 實讀補核)。
+- 主線額外失手:迴歸腳本 `cmd | tail; echo $?` 讀到 pipe 末端 exit code,T3 誤讀為 0——帳本 [22] 同型第 2 次,已修測法並記 ledger。
+
+## 終局
+
+- 修復後全量迴歸 8/8 PASS(P2×3 案例、escape-root 防護、fixture、T1/T2/T3)。
+- C7(FTS)撤回並自草稿移除;C1–C6 成立。
+- ledger append ×3(a/b/c)。
+- **裁決:T1/T2 過。兩項對外(push repo、發 issue)技術上就緒,執行仍待使用者明示。**
