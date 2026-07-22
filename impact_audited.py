@@ -27,8 +27,10 @@ Usage:
 
 Languages: python, rust, js, ts, go. Default `--lang auto` detects which of
 these are present under --path and audits their union. Call-site detection is
-`sym(` minus definition lines and line comments; interiors of block comments
-are NOT excluded (known false-positive source, same as plain grep).
+`sym(` minus definition lines and FULL-LINE comments; trailing comments,
+interiors of block comments, and TS interface method signatures are NOT
+excluded (known over-count sources, same as plain grep). Vendored dirs
+(node_modules/target/.venv/...) are pruned from both detection and the floor.
 
 Exit codes: 0 = audit passed (or no graph tool given); 2 = graph tool omitted a
 direct caller that grep found (its impact answer is incomplete); 3 = the graph
@@ -41,6 +43,10 @@ import argparse, json, os, re, shlex, subprocess, sys
 
 # Per-language knowledge: file extensions, definition-line keywords (a line
 # matching `<kw> sym` is a definition, not a call site), line-comment markers.
+# Vendored/build dirs excluded from BOTH language detection and the grep floor
+# (asymmetric pruning would turn vendored call sites into false AUDIT FAILED).
+PRUNE_DIRS = (".git", "node_modules", "target", ".venv", "venv", "__pycache__")
+
 LANGS = {
     "python": {"exts": ("py",),                       "def_kw": r"def|class",
                "comment": ("#",)},
@@ -60,8 +66,7 @@ def detect_langs(root):
     ext2lang = {e: l for l, c in LANGS.items() for e in c["exts"]}
     found = set()
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in
-                       (".git", "node_modules", "target", ".venv", "venv", "__pycache__")]
+        dirnames[:] = [d for d in dirnames if d not in PRUNE_DIRS]
         for fn in filenames:
             lang = ext2lang.get(fn.rsplit(".", 1)[-1] if "." in fn else "")
             if lang:
@@ -87,10 +92,24 @@ def count_tokens(s):
 
 
 def files_in_text(text, root, exts):
-    """Every source path mentioned in `text` that actually exists under root."""
+    """Every source path mentioned in `text` that actually exists under root.
+    Absolute paths are normalized to root-relative; paths outside root are
+    ignored (they can't be grep-floor callers, so they must not diff)."""
     file_re = re.compile(r'[\w./-]+\.(?:' + "|".join(exts) + r')\b')
-    return {m.lstrip("./") for m in file_re.findall(text)
-            if os.path.exists(os.path.join(root, m.lstrip("./")))}
+    out = set()
+    for m in file_re.findall(text):
+        if os.path.isabs(m):
+            real = os.path.realpath(m)
+            if not real.startswith(root + os.sep):
+                continue
+            cand = os.path.relpath(real, root)
+        else:
+            cand = os.path.normpath(m.lstrip("./"))
+            if cand.startswith(".."):
+                continue
+        if os.path.exists(os.path.join(root, cand)):
+            out.add(cand)
+    return out
 
 
 def grep_caller_files(sym, root, exts, def_kw, comments):
@@ -101,7 +120,8 @@ def grep_caller_files(sym, root, exts, def_kw, comments):
     esc = re.escape(sym)
     proc = subprocess.run(
         ["grep", "-rnE", rf"\b{esc}\s*\("]
-        + [f"--include=*.{e}" for e in exts] + ["."],
+        + [f"--include=*.{e}" for e in exts]
+        + [f"--exclude-dir={d}" for d in PRUNE_DIRS] + ["."],
         cwd=root, capture_output=True, text=True)
     files, kept = set(), []
     for ln in proc.stdout.splitlines():
