@@ -67,12 +67,20 @@ pip install tiktoken   # optional
 ./impact_audited.py to_key_val_list --path /path/to/requests
 
 # 2) Audit a graph tool. --graph is a shell template; {sym} = the symbol.
-#    Its stdout is scanned for .py paths and diffed against grep.
+#    Its stdout is scanned for source paths and diffed against grep.
 ./impact_audited.py to_key_val_list --path /path/to/requests \
     --graph 'gitnexus impact {sym} -r requests'
 
 # Works with ANY tool that prints file paths — swap the backend:
 ./impact_audited.py my_func --path . --graph 'other-graph-tool trace {sym} --json'
+
+# Multi-language: python / rust / js / ts / go. --lang auto (default) detects
+# what's under --path; call sites are `sym(` minus definition lines and line
+# comments. First real catch on Rust: GitNexus reported the central tool
+# dispatcher of a 45k-line agent CLI as risk=LOW with 1 caller file; the floor
+# found 3 — the transitive edge broke at a same-name wrapper function.
+./impact_audited.py dispatch --path /path/to/noob-cli --lang rust \
+    --graph 'gitnexus impact --repo noob-cli "Function:crates/noob/src/tools/mod.rs:{sym}"'
 
 # 3) Machine-readable, for CI / agent tool-use:
 ./impact_audited.py my_func --path . --graph '...' --json

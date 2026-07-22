@@ -25,6 +25,11 @@ Usage:
   impact_audited.py SYMBOL --path /repo --graph 'gitnexus impact {sym} -r myrepo'
   impact_audited.py SYMBOL --path /repo --graph 'other-tool trace {sym} --json'
 
+Languages: python, rust, js, ts, go. Default `--lang auto` detects which of
+these are present under --path and audits their union. Call-site detection is
+`sym(` minus definition lines and line comments; interiors of block comments
+are NOT excluded (known false-positive source, same as plain grep).
+
 Exit codes: 0 = audit passed (or no graph tool given); 2 = graph tool omitted a
 direct caller that grep found (its impact answer is incomplete); 3 = the graph
 backend produced no output (missing tool / wrong command) — reported as an
@@ -34,7 +39,43 @@ Optional: `pip install tiktoken` to see approximate token cost per query.
 """
 import argparse, json, os, re, shlex, subprocess, sys
 
-PYFILE = re.compile(r'[\w./-]+\.py')
+# Per-language knowledge: file extensions, definition-line keywords (a line
+# matching `<kw> sym` is a definition, not a call site), line-comment markers.
+LANGS = {
+    "python": {"exts": ("py",),                       "def_kw": r"def|class",
+               "comment": ("#",)},
+    "rust":   {"exts": ("rs",),                       "def_kw": r"fn|struct|enum|trait|mod|macro_rules!",
+               "comment": ("//",)},
+    "js":     {"exts": ("js", "jsx", "mjs", "cjs"),   "def_kw": r"function|class",
+               "comment": ("//",)},
+    "ts":     {"exts": ("ts", "tsx"),                 "def_kw": r"function|class|interface|type",
+               "comment": ("//",)},
+    "go":     {"exts": ("go",),                       "def_kw": r"func|type",
+               "comment": ("//",)},
+}
+
+
+def detect_langs(root):
+    """Languages actually present under root (cheap: one os.walk, names only)."""
+    ext2lang = {e: l for l, c in LANGS.items() for e in c["exts"]}
+    found = set()
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in
+                       (".git", "node_modules", "target", ".venv", "venv", "__pycache__")]
+        for fn in filenames:
+            lang = ext2lang.get(fn.rsplit(".", 1)[-1] if "." in fn else "")
+            if lang:
+                found.add(lang)
+        if len(found) == len(LANGS):
+            break
+    return sorted(found)
+
+
+def lang_confs(langs):
+    exts = tuple(e for l in langs for e in LANGS[l]["exts"])
+    def_kw = "|".join(LANGS[l]["def_kw"] for l in langs)
+    comments = tuple(m for l in langs for m in LANGS[l]["comment"])
+    return exts, def_kw, comments
 
 
 def count_tokens(s):
@@ -45,19 +86,22 @@ def count_tokens(s):
         return None
 
 
-def files_in_text(text, root):
-    """Every .py path mentioned in `text` that actually exists under root."""
-    return {m.lstrip("./") for m in PYFILE.findall(text)
+def files_in_text(text, root, exts):
+    """Every source path mentioned in `text` that actually exists under root."""
+    file_re = re.compile(r'[\w./-]+\.(?:' + "|".join(exts) + r')\b')
+    return {m.lstrip("./") for m in file_re.findall(text)
             if os.path.exists(os.path.join(root, m.lstrip("./")))}
 
 
-def grep_caller_files(sym, root):
+def grep_caller_files(sym, root, exts, def_kw, comments):
     """Ground-truth direct callers: files with a real `sym(` call site.
-    Definition lines (`def sym(` / `class sym(`) are not call sites.
-    grep runs without a shell (arg list), so the symbol never touches shell syntax."""
+    Definition lines (`def sym(` / `fn sym(` / ...) and line comments are not
+    call sites. grep runs without a shell (arg list), so the symbol never
+    touches shell syntax."""
     esc = re.escape(sym)
     proc = subprocess.run(
-        ["grep", "-rnE", rf"\b{esc}\s*\(", "--include=*.py", "."],
+        ["grep", "-rnE", rf"\b{esc}\s*\("]
+        + [f"--include=*.{e}" for e in exts] + ["."],
         cwd=root, capture_output=True, text=True)
     files, kept = set(), []
     for ln in proc.stdout.splitlines():
@@ -65,7 +109,9 @@ def grep_caller_files(sym, root):
         if len(parts) < 3:
             continue
         fp, text = parts[0].lstrip("./"), parts[2]
-        if re.search(rf"\b(def|class)\s+{esc}\b", text):
+        if re.search(rf"\b(?:{def_kw})\s+{esc}\b", text):
+            continue
+        if text.lstrip().startswith(comments):
             continue
         if os.path.exists(os.path.join(root, fp)):
             files.add(fp)
@@ -80,13 +126,32 @@ def main():
     ap.add_argument("--path", default=".", help="repository root (default: cwd)")
     ap.add_argument("--graph", default=None,
         help="graph-tool command template; '{sym}' is replaced with the symbol. "
-             "Its stdout is scanned for .py paths. Omit to just show the grep floor.")
+             "Its stdout is scanned for source paths. Omit to just show the grep floor.")
+    ap.add_argument("--lang", default="auto",
+        help="comma-separated languages to audit (%s), or 'auto' to detect "
+             "from files present (default)" % "/".join(LANGS))
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     a = ap.parse_args()
     root = os.path.abspath(a.path)
     sym = a.symbol
 
-    grep_files, grep_raw = grep_caller_files(sym, root)
+    if a.lang == "auto":
+        langs = detect_langs(root)
+        if not langs:
+            print(f"impact-audited  «{sym}»\n"
+                  f"  ⚠ no supported source files ({'/'.join(LANGS)}) found under {root}",
+                  file=sys.stderr)
+            sys.exit(3)
+    else:
+        langs = [l.strip() for l in a.lang.split(",")]
+        unknown = [l for l in langs if l not in LANGS]
+        if unknown:
+            print(f"impact-audited: unknown --lang {unknown}; "
+                  f"supported: {'/'.join(LANGS)}", file=sys.stderr)
+            sys.exit(3)
+    exts, def_kw, comments = lang_confs(langs)
+
+    grep_files, grep_raw = grep_caller_files(sym, root, exts, def_kw, comments)
 
     graph_files, graph_raw, missed = None, "", []
     if a.graph:
@@ -99,7 +164,7 @@ def main():
                   " Is the tool installed and the --graph command correct?"
                   " Not counting this as an omission.", file=sys.stderr)
             sys.exit(3)
-        graph_files = files_in_text(graph_raw, root)
+        graph_files = files_in_text(graph_raw, root, exts)
         missed = sorted(grep_files - graph_files)
 
     tok = None
@@ -111,6 +176,7 @@ def main():
     audit_pass = not missed
     result = {
         "symbol": sym,
+        "langs": langs,
         "grep_caller_files": sorted(grep_files),
         "graph_caller_files": sorted(graph_files) if graph_files is not None else None,
         "omitted_by_graph": missed,
