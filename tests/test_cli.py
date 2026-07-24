@@ -32,7 +32,10 @@ class AuditCliTests(unittest.TestCase):
             f"sys.stderr.write({stderr!r})\n"
             f"raise SystemExit({returncode})\n",
         )
-        return f"{shlex.quote(sys.executable)} {shlex.quote(str(script))}"
+        return (
+            f"{shlex.quote(sys.executable)} {shlex.quote(str(script))} "
+            "--symbol {sym}"
+        )
 
     def run_json(self, *args):
         output = io.StringIO()
@@ -142,6 +145,69 @@ class AuditCliTests(unittest.TestCase):
 
         self.assertEqual(code, impact_audited.EXIT_PASS)
         self.assertFalse(marker.exists())
+
+    def test_graph_template_rejects_zero_placeholders(self):
+        code, result = self.run_json(
+            "audited",
+            "--path",
+            str(self.root),
+            "--graph",
+            "printf 'caller.py\n'",
+        )
+
+        self.assertEqual(code, impact_audited.EXIT_INVALID_CONFIG)
+        self.assertEqual(result["error"], "invalid_configuration")
+        self.assertIn("exactly one literal '{sym}'", result["message"])
+        self.assertIn("found 0", result["message"])
+
+    def test_graph_template_accepts_exactly_one_placeholder(self):
+        self.write("caller.py", "audited()\n")
+
+        code, result = self.run_json(
+            "audited",
+            "--path",
+            str(self.root),
+            "--graph",
+            self.backend("caller.py\n"),
+        )
+
+        self.assertEqual(code, impact_audited.EXIT_PASS)
+        self.assertEqual(result["final_status"], "PASS")
+
+    def test_graph_template_rejects_multiple_placeholders(self):
+        code, result = self.run_json(
+            "audited",
+            "--path",
+            str(self.root),
+            "--graph",
+            "printf '%s %s\n' {sym} {sym}",
+        )
+
+        self.assertEqual(code, impact_audited.EXIT_INVALID_CONFIG)
+        self.assertEqual(result["error"], "invalid_configuration")
+        self.assertIn("exactly one literal '{sym}'", result["message"])
+        self.assertIn("found 2", result["message"])
+
+    def test_graph_placeholder_human_error_is_clear(self):
+        error = io.StringIO()
+
+        with contextlib.redirect_stderr(error):
+            code = impact_audited.main(
+                [
+                    "audited",
+                    "--path",
+                    str(self.root),
+                    "--graph",
+                    "printf 'caller.py\n'",
+                ]
+            )
+
+        self.assertEqual(code, impact_audited.EXIT_INVALID_CONFIG)
+        self.assertIn(
+            "--graph must contain exactly one literal '{sym}' placeholder (found 0)",
+            error.getvalue(),
+        )
+        self.assertIn("Final: FAIL", error.getvalue())
 
     def test_invalid_configuration(self):
         code, result = self.run_json(

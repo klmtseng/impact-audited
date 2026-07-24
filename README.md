@@ -112,6 +112,11 @@ impact-audited UserCard --path ./web \
 impact-audited my_func --path . --graph 'my-graph callers {sym}' --json
 ```
 
+Every `--graph` template must contain **exactly one literal `{sym}`
+placeholder**. The CLI replaces it with the shell-quoted audited symbol before
+execution. A template containing zero or multiple `{sym}` placeholders is
+invalid configuration and exits with code `4` without running the backend.
+
 Human-readable output always includes the audited symbol, baseline caller
 count, graph caller count, missing callers, and a final `PASS` or `FAIL`.
 JSON output includes the same information and retains the v0.1 field names for
