@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "impact-audited"
+version = "0.2.0"
+description = "Verify graph-backend callers against a deterministic text-scan floor"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "KLM Tseng" }]
+keywords = ["dependency-graph", "impact-analysis", "ci"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+]
+
+[project.optional-dependencies]
+tokens = ["tiktoken>=0.7.0"]
+dev = [
+  "build>=1.2.1",
+  "ruff>=0.5.0",
+]
+
+[project.scripts]
+impact-audited = "impact_audited:main"
+
+[tool.setuptools]
+py-modules = ["impact_audited"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

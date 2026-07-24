@@ -19,11 +19,22 @@ Usage:
   python scan_contamination.py <repo_path> <analyze_log> <src_subdir> \
          [--drop-pattern 'scope extraction failed for ([^:]+):']
 """
-import argparse, json, os, re, subprocess
+import argparse
+import json
+import os
+import re
+import subprocess
 
 
-def sh(cmd, cwd):
-    return subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True).stdout
+def grep(pattern, cwd, path):
+    """Run the benchmark's grep without passing repository data through a shell."""
+    return subprocess.run(
+        ["grep", "-rnE", pattern, "--include=*.py", "--", path],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout
 
 
 def main():
@@ -43,7 +54,9 @@ def main():
 
     # symbol -> definition files
     defs = {}
-    for line in sh(f"grep -rnE '^(def|class) ([A-Za-z_][A-Za-z0-9_]+)' --include=*.py {a.src}", repo).splitlines():
+    for line in grep(
+        r"^(def|class) ([A-Za-z_][A-Za-z0-9_]+)", repo, a.src
+    ).splitlines():
         m = re.match(r"([^:]+):\d+:(?:def|class)\s+([A-Za-z_][A-Za-z0-9_]+)", line)
         if m and len(m.group(2)) >= 4 and not m.group(2).startswith("__"):
             defs.setdefault(m.group(2), set()).add(m.group(1).lstrip("./"))
@@ -52,7 +65,7 @@ def main():
     for n, deffiles in sorted(defs.items()):
         esc = re.escape(n)
         callers = set()
-        for line in sh(f"grep -rnE '\\b{esc}\\s*\\(' --include=*.py .", repo).splitlines():
+        for line in grep(rf"\b{esc}\s*\(", repo, ".").splitlines():
             parts = line.split(":", 2)
             if len(parts) < 3:
                 continue
@@ -78,11 +91,23 @@ def main():
     for tier, d in tiers.items():
         n, tot = len(d["hits"]), d["total"]
         pct = 100 * n / max(tot, 1)
-        print(f"[{tier}] symbols considered: {tot} | provably-incomplete impact answers: {n} ({pct:.0f}%)")
+        print(
+            f"[{tier}] symbols considered: {tot} | "
+            f"provably-incomplete impact answers: {n} ({pct:.0f}%)"
+        )
         print(f"        examples: {d['hits'][:6]}")
-        out[tier] = {"total": tot, "incomplete": n, "pct": round(pct), "examples": d["hits"][:15]}
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"results_{os.path.basename(repo)}.json")
-    json.dump(out, open(path, "w"), ensure_ascii=False, indent=2)
+        out[tier] = {
+            "total": tot,
+            "incomplete": n,
+            "pct": round(pct),
+            "examples": d["hits"][:15],
+        }
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        f"results_{os.path.basename(repo)}.json",
+    )
+    with open(path, "w") as output:
+        json.dump(out, output, ensure_ascii=False, indent=2)
 
 
 if __name__ == "__main__":
