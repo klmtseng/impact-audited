@@ -200,8 +200,9 @@ def build_parser():
         "--graph",
         default=None,
         help=(
-            "trusted graph-tool shell command template; '{sym}' is replaced with "
-            "the shell-quoted symbol and stdout is scanned for source paths"
+            "trusted graph-tool shell command template containing exactly one literal "
+            "'{sym}' placeholder; it is replaced with the shell-quoted symbol and "
+            "stdout is scanned for source paths"
         ),
     )
     parser.add_argument("--json", action="store_true", help="machine-readable output")
@@ -268,8 +269,14 @@ def main(argv=None):
         return _configuration_error(f"repository path does not exist: {root}", args.json)
     if not root.is_dir():
         return _configuration_error(f"repository path is not a directory: {root}", args.json)
-    if args.graph is not None and not args.graph.strip():
-        return _configuration_error("--graph must not be empty", args.json)
+    if args.graph is not None:
+        placeholder_count = args.graph.count("{sym}")
+        if placeholder_count != 1:
+            return _configuration_error(
+                "--graph must contain exactly one literal '{sym}' placeholder "
+                f"(found {placeholder_count})",
+                args.json,
+            )
 
     try:
         baseline_files, baseline_raw = baseline_caller_files(symbol, root)
