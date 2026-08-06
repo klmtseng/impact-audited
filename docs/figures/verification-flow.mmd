@@ -1,0 +1,16 @@
+flowchart LR
+    Q[Symbol]
+    Q --> G[Graph backend]
+    Q --> B[Lexical baseline<br/>deterministic text scan]
+
+    G --> GC[Reported caller files]
+    B --> BC[Detectable direct caller files]
+
+    GC --> C{Compare}
+    BC --> C
+
+    C -->|sets match| P[PASS]
+    C -->|baseline has extra| F[FAIL<br/>possible index gap]
+
+    style P fill:#dafbe1,stroke:#2da44e,color:#116329
+    style F fill:#ffebe9,stroke:#cf222e,color:#82071e
