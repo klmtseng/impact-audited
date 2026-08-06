@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 # Reproduce the impact-audited benchmark end to end.
-# Requires: git, gitnexus (npm i -g gitnexus). Optional: pip install tiktoken.
+# Requires: git, gitnexus 1.6.3 (npm i -g gitnexus@1.6.3). Optional: pip install tiktoken.
+#
+# Tool versions used for the published numbers in RESULTS.md:
+#   GitNexus 1.6.3  (npm i -g gitnexus@1.6.3)
+#
+# Repos are cloned at the exact commits used for the original measurement.
+# Full SHAs verified 2026-08-06:
+#   psf/requests     23953c0c875219a715f081cf3de7c149a7629ccf
+#   ranaroussi/yfinance  38c73ce33fb1ee77d37a0998c95c06e60356298e
 set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p repos && cd repos
@@ -9,13 +17,19 @@ declare -A REPOS=(
   [requests]="https://github.com/psf/requests"
   [yfinance]="https://github.com/ranaroussi/yfinance"
 )
+declare -A PINS=(
+  [requests]="23953c0c875219a715f081cf3de7c149a7629ccf"
+  [yfinance]="38c73ce33fb1ee77d37a0998c95c06e60356298e"
+)
 declare -A SRC=( [requests]="src" [yfinance]="yfinance" )
 
-# Note: clones the current default branch. RESULTS.md numbers were measured at
-# the commits pinned there (requests 23953c0, yfinance 38c73ce); exact counts
-# drift as upstream moves — the pattern is what should reproduce.
 for name in "${!REPOS[@]}"; do
-  [ -d "$name" ] || git clone --depth 1 -q "${REPOS[$name]}" "$name"
+  if [ ! -d "$name" ]; then
+    git clone -q "${REPOS[$name]}" "$name"
+    git -C "$name" checkout -q "${PINS[$name]}"
+  else
+    echo "  (using existing clone; commit should be ${PINS[$name]})"
+  fi
   echo "=== indexing $name with GitNexus ==="
   gitnexus analyze "$PWD/$name" --force --skip-agents-md --name "bench-$name" \
     > "../analyze_$name.log" 2>&1 || true

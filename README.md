@@ -1,5 +1,7 @@
 # impact-audited
 
+[![CI](https://github.com/klmtseng/impact-audited/actions/workflows/ci.yml/badge.svg)](https://github.com/klmtseng/impact-audited/actions/workflows/ci.yml)
+
 Detect silent indexing gaps in code-graph tools.
 
 Verification you didn't ask for
@@ -85,7 +87,7 @@ python -m pip install "git+https://github.com/klmtseng/impact-audited.git@main"
 impact-audited --help
 ```
 
-Single-file: `curl -O .../impact_audited.py && chmod +x impact_audited.py`. `[tokens]` extra for token accounting.
+Single-file: `curl -O https://raw.githubusercontent.com/klmtseng/impact-audited/main/impact_audited.py && chmod +x impact_audited.py`. `[tokens]` extra for token accounting.
 
 ## Output example
 

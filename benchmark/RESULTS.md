@@ -8,15 +8,18 @@ the file that caller lives in?
 
 | Repo | Commit | Non-test `.py` | Lines |
 |---|---|---|---|
-| psf/requests | `23953c0` | 22 | 6,874 |
-| ranaroussi/yfinance | `38c73ce` | 50 | 13,715 |
+| psf/requests | `23953c0c875219a715f081cf3de7c149a7629ccf` | 22 | 6,874 |
+| ranaroussi/yfinance | `38c73ce33fb1ee77d37a0998c95c06e60356298e` | 50 | 13,715 |
 
 Tools:
-- **GitNexus 1.6.3** — `gitnexus analyze` then `gitnexus impact <sym>` (blast radius, upstream).
+- **GitNexus 1.6.3** (`npm i -g gitnexus@1.6.3`) — `gitnexus analyze` then `gitnexus impact <sym>` (blast radius, upstream).
 - **codebase-memory-mcp 0.8.1** — `index_repository` then `trace_path`/`search_graph` (fairness reference).
 - **grep** — `grep -rnE '\bSYM\s*\(' --include=*.py` minus the definition line = direct-caller ground truth.
 
 Token accounting: `tiktoken` `cl100k_base`, same encoder for every tool.
+
+Reproducibility verified 2026-08-06: `scan_contamination.py` run against both pinned commits
+with GitNexus 1.6.3 reproduces the published strict/broad numbers exactly.
 
 ## Finding 1 — the indexer silently drops core files
 
