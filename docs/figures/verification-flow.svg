@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 300" width="740" height="300" role="img" aria-label="impact-audited verification flow diagram">
+  <title>Verification Flow</title>
+  <desc>Symbol feeds into both Graph backend and Lexical baseline. Graph backend produces Reported caller files. Lexical baseline produces Detectable direct caller files. Both sets feed into Compare, which yields PASS or FAIL / possible index gap.</desc>
+
+  <!-- Background -->
+  <rect width="740" height="300" rx="8" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
+
+  <!-- Symbol box -->
+  <rect x="20" y="120" width="100" height="60" rx="6" fill="#ddf4ff" stroke="#54aeff" stroke-width="1.5"/>
+  <text x="70" y="145" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="13" fill="#0969da" font-weight="600">Symbol</text>
+  <text x="70" y="163" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="11" fill="#0969da">to_key_val_list</text>
+
+  <!-- Arrow Symbol → Graph backend -->
+  <line x1="120" y1="135" x2="200" y2="100" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- Arrow Symbol → Lexical baseline -->
+  <line x1="120" y1="165" x2="200" y2="200" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Graph backend box -->
+  <rect x="200" y="70" width="140" height="60" rx="6" fill="#fff8c5" stroke="#d4a72c" stroke-width="1.5"/>
+  <text x="270" y="96" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" fill="#633c01" font-weight="600">Graph backend</text>
+  <text x="270" y="114" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="11" fill="#633c01">GitNexus, LSP, MCP…</text>
+
+  <!-- Lexical baseline box -->
+  <rect x="200" y="170" width="140" height="60" rx="6" fill="#fff8c5" stroke="#d4a72c" stroke-width="1.5"/>
+  <text x="270" y="196" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" fill="#633c01" font-weight="600">Lexical baseline</text>
+  <text x="270" y="214" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="11" fill="#633c01">deterministic text scan</text>
+
+  <!-- Arrow Graph backend → Reported caller files -->
+  <line x1="340" y1="100" x2="400" y2="100" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- Arrow Lexical baseline → Detectable caller files -->
+  <line x1="340" y1="200" x2="400" y2="200" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Reported caller files box -->
+  <rect x="400" y="70" width="155" height="60" rx="6" fill="#f6f8fa" stroke="#8c959f" stroke-width="1.5"/>
+  <text x="478" y="96" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" fill="#1f2328" font-weight="600">Reported caller files</text>
+  <text x="478" y="114" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="11" fill="#57606a">from graph tool output</text>
+
+  <!-- Detectable caller files box -->
+  <rect x="400" y="170" width="155" height="60" rx="6" fill="#f6f8fa" stroke="#8c959f" stroke-width="1.5"/>
+  <text x="478" y="196" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" fill="#1f2328" font-weight="600">Detectable direct</text>
+  <text x="478" y="212" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="11" fill="#1f2328" font-weight="600">caller files</text>
+  <text x="478" y="228" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="11" fill="#57606a">from lexical scan</text>
+
+  <!-- Arrow Reported → Compare -->
+  <line x1="555" y1="100" x2="610" y2="138" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- Arrow Detectable → Compare -->
+  <line x1="555" y1="200" x2="610" y2="162" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Compare diamond -->
+  <polygon points="630,120 660,150 630,180 600,150" fill="#f6f8fa" stroke="#8c959f" stroke-width="1.5"/>
+  <text x="630" y="147" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="11" fill="#1f2328" font-weight="600">Com-</text>
+  <text x="630" y="161" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="11" fill="#1f2328" font-weight="600">pare</text>
+
+  <!-- Arrow Compare → PASS -->
+  <line x1="660" y1="136" x2="680" y2="100" stroke="#1a7f37" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+  <!-- PASS box -->
+  <rect x="680" y="72" width="44" height="30" rx="5" fill="#dafbe1" stroke="#2da44e" stroke-width="1.5"/>
+  <text x="702" y="91" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" fill="#116329" font-weight="700">PASS</text>
+
+  <!-- Arrow Compare → FAIL -->
+  <line x1="660" y1="164" x2="680" y2="200" stroke="#cf222e" stroke-width="1.5" marker-end="url(#arrow-red)"/>
+  <!-- FAIL box -->
+  <rect x="674" y="186" width="56" height="44" rx="5" fill="#ffebe9" stroke="#cf222e" stroke-width="1.5"/>
+  <text x="702" y="205" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" fill="#82071e" font-weight="700">FAIL</text>
+  <text x="702" y="220" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="9" fill="#82071e">index gap?</text>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#57606a"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#1a7f37"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#cf222e"/>
+    </marker>
+  </defs>
+</svg>

@@ -7,21 +7,7 @@ Detect silent indexing gaps in code-graph tools.
 Verification you didn't ask for
 beats confidence you can't check.
 
-```mermaid
-flowchart LR
-    Q[Symbol]
-    Q --> G[Graph backend]
-    Q --> B[Deterministic lexical scan]
-
-    G --> GC[Caller files]
-    B --> BC[Caller files]
-
-    GC --> C{Compare}
-    BC --> C
-
-    C --> P[PASS]
-    C --> F[FAIL<br/>Possible indexing gap]
-```
+![Verification flow](docs/figures/verification-flow.svg)
 
 ## Problem
 
@@ -30,6 +16,14 @@ analyzers, MCP servers that give AI agents a map of your codebase -- answer
 *"what breaks if I change this function?"*. But if the indexer silently drops a
 source file, every dependency edge through that file disappears. You get *"low
 risk, only one caller"* when the symbol is used across the core of your codebase.
+
+When a file fails to parse or index, the indexer typically logs a warning and
+continues. The file and its edges are absent from the graph. Every subsequent
+impact query looks authoritative -- no error, no caveat -- but it returns an
+**authoritative-looking incomplete answer**: a result that passes visual
+inspection but is missing callers you care about.
+
+![Failure mode](docs/figures/failure-mode.svg)
 
 ## 30-second example
 
@@ -83,7 +77,12 @@ Full method: [`benchmark/RESULTS.md`](benchmark/RESULTS.md).
 Python 3.9+, standard library only.
 
 ```bash
+# Install pinned release (recommended)
+python -m pip install "git+https://github.com/klmtseng/impact-audited.git@v0.2.0"
+
+# Development install (latest main)
 python -m pip install "git+https://github.com/klmtseng/impact-audited.git@main"
+
 impact-audited --help
 ```
 
@@ -106,8 +105,7 @@ Exit: `0` pass / `2` missing callers / `3` backend failed / `4` invalid config.
 
 ## Benchmark
 
-`psf/requests`: **50%** (28/56 strict), 64% broad. `ranaroussi/yfinance`: **12%** (7/59 strict), 39% broad.
-GitNexus 1.6.3 / codebase-memory-mcp 0.8.1 (2026-06). Full methodology: [`benchmark/RESULTS.md`](benchmark/RESULTS.md).
+Full methodology and raw numbers: [`benchmark/RESULTS.md`](benchmark/RESULTS.md).
 
 ## Limitations
 

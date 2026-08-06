@@ -1,0 +1,21 @@
+flowchart TB
+    subgraph IT["INDEXING TIME"]
+        REPO["Actual repository\ncaller_a.py\ncaller_b.py\ncaller_c.py (parse issue)"]
+        IDX["Indexer"]
+        WARN["⚠ parse warning logged\ncaller_c.py — skipped\nindexing continues"]
+        GRAPH["Graph store\ncaller_a.py ✓\ncaller_b.py ✓\n(caller_c.py absent)"]
+        REPO --> IDX --> WARN --> GRAPH
+    end
+
+    subgraph QT["QUERY TIME"]
+        QUERY["impact query\nto_key_val_list"]
+        ANS["Impact answer\nlooks complete — no error, no caveat\ncaller_c.py silently missing"]
+        OUT["authoritative-looking\nincomplete answer"]
+        QUERY --> ANS --> OUT
+    end
+
+    GRAPH -.-> ANS
+
+    style WARN fill:#fff3cd,stroke:#d4a72c
+    style ANS fill:#ffebe9,stroke:#cf222e
+    style OUT fill:#ffebe9,stroke:#cf222e,stroke-dasharray: 5 5

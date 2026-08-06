@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 340" width="740" height="340" role="img" aria-label="impact-audited failure mode diagram">
+  <title>Failure Mode: Silent Indexing Gap</title>
+  <desc>At indexing time, a parse failure causes one file to be dropped silently. At query time, the impact answer looks complete but is missing that caller.</desc>
+
+  <!-- Background -->
+  <rect width="740" height="340" rx="8" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
+
+  <!-- Timeline label background -->
+  <rect x="10" y="10" width="720" height="24" rx="4" fill="#eaeef2"/>
+
+  <!-- Phase divider -->
+  <line x1="370" y1="10" x2="370" y2="330" stroke="#d0d7de" stroke-width="1.5" stroke-dasharray="6,4"/>
+
+  <!-- Phase labels -->
+  <text x="190" y="27" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" fill="#57606a" font-weight="600">INDEXING TIME</text>
+  <text x="555" y="27" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" fill="#57606a" font-weight="600">QUERY TIME</text>
+
+  <!-- ── LEFT SIDE: Indexing time ── -->
+
+  <!-- Actual repository -->
+  <rect x="20" y="50" width="140" height="110" rx="6" fill="#fff" stroke="#8c959f" stroke-width="1.5"/>
+  <text x="90" y="70" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" fill="#1f2328" font-weight="600">Actual repository</text>
+  <text x="90" y="90" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="11" fill="#1f2328">caller_a.py</text>
+  <text x="90" y="108" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="11" fill="#1f2328">caller_b.py</text>
+  <text x="90" y="126" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="11" fill="#cf222e">caller_c.py</text>
+  <text x="90" y="144" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="10" fill="#57606a">(has parse issue)</text>
+
+  <!-- Arrow repo → indexer -->
+  <line x1="160" y1="105" x2="195" y2="105" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Indexer box -->
+  <rect x="195" y="78" width="110" height="54" rx="6" fill="#fff8c5" stroke="#d4a72c" stroke-width="1.5"/>
+  <text x="250" y="99" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" fill="#633c01" font-weight="600">Indexer</text>
+  <text x="250" y="116" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="10" fill="#633c01">processes files…</text>
+
+  <!-- Warning bubble -->
+  <rect x="170" y="160" width="180" height="54" rx="6" fill="#fff3cd" stroke="#d4a72c" stroke-width="1.5"/>
+  <text x="260" y="180" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="11" fill="#633c01" font-weight="600">⚠ parse warning logged</text>
+  <text x="260" y="197" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="10" fill="#633c01">caller_c.py — skipped</text>
+  <text x="260" y="212" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="10" fill="#633c01">indexing continues</text>
+
+  <!-- Arrow indexer → warning -->
+  <line x1="250" y1="132" x2="250" y2="158" stroke="#d4a72c" stroke-width="1.5" marker-end="url(#arr-yellow)"/>
+
+  <!-- Graph store (incomplete) -->
+  <rect x="170" y="240" width="180" height="70" rx="6" fill="#fff" stroke="#8c959f" stroke-width="1.5"/>
+  <text x="260" y="260" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" fill="#1f2328" font-weight="600">Graph store</text>
+  <text x="260" y="278" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="11" fill="#1f2328">caller_a.py ✓</text>
+  <text x="260" y="296" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="11" fill="#1f2328">caller_b.py ✓</text>
+  <text x="260" y="300" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="10" fill="#cf222e">  (caller_c.py absent)</text>
+
+  <!-- Arrow warning → graph store -->
+  <line x1="250" y1="214" x2="250" y2="238" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ── RIGHT SIDE: Query time ── -->
+
+  <!-- Query box -->
+  <rect x="390" y="50" width="150" height="54" rx="6" fill="#ddf4ff" stroke="#54aeff" stroke-width="1.5"/>
+  <text x="465" y="72" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" fill="#0969da" font-weight="600">impact query</text>
+  <text x="465" y="90" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="11" fill="#0969da">to_key_val_list</text>
+
+  <!-- Arrow query → incomplete graph -->
+  <path d="M465 104 Q465 120 400 150 Q380 160 380 240 Q380 255 390 260" fill="none" stroke="#57606a" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+
+  <!-- Impact answer box -->
+  <rect x="390" y="160" width="160" height="90" rx="6" fill="#ffebe9" stroke="#cf222e" stroke-width="1.5"/>
+  <text x="470" y="180" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" fill="#82071e" font-weight="600">Impact answer</text>
+  <text x="470" y="198" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="11" fill="#82071e">looks complete —</text>
+  <text x="470" y="214" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="11" fill="#82071e">no error, no caveat</text>
+  <text x="470" y="235" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="10" fill="#82071e">→ caller_c.py silently</text>
+  <text x="470" y="249" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="10" fill="#82071e">   missing</text>
+
+  <!-- Arrow query → impact answer -->
+  <line x1="465" y1="104" x2="465" y2="158" stroke="#57606a" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- "Authoritative-looking" label -->
+  <rect x="390" y="270" width="160" height="46" rx="6" fill="#fff" stroke="#cf222e" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="470" y="290" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="11" fill="#82071e" font-weight="600">authoritative-looking</text>
+  <text x="470" y="307" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="11" fill="#82071e">incomplete answer</text>
+
+  <!-- Arrow impact → authoritative label -->
+  <line x1="470" y1="250" x2="470" y2="268" stroke="#cf222e" stroke-width="1.5" marker-end="url(#arr-red)"/>
+
+  <!-- Markers -->
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#57606a"/>
+    </marker>
+    <marker id="arr-yellow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#d4a72c"/>
+    </marker>
+    <marker id="arr-red" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#cf222e"/>
+    </marker>
+  </defs>
+</svg>
