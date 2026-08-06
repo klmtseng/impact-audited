@@ -1,204 +1,143 @@
 # impact-audited
 
-**Trust-but-verify for code-graph "impact analysis".**
+Detect silent indexing gaps in code-graph tools.
 
-Code-intelligence tools — knowledge-graph indexers, LSP-backed "blast radius"
-analyzers, the MCP servers that give AI agents a map of your codebase — answer
-questions like *"what breaks if I change this function?"*. They're fast and
-they read confident. But they share a quiet failure mode: **if the indexer
-silently drops a source file** (a parser hiccup on one large file is enough),
-every dependency edge through that file disappears — and the tool still answers
-as if the file never existed. You get *"low risk, only one caller"* when the
-symbol is actually used across the core of your codebase.
+Verification you didn't ask for
+beats confidence you can't check.
 
-`impact-audited` catches that. It cross-checks any graph tool's impact output
-against a cheap, dependency-free floor — a deterministic text scan for direct
-call sites — and **the disagreement is the signal**: if the scan finds a caller the graph tool
-didn't report, that edge is missing from the index, and you're told so loudly
-instead of trusting a silent omission.
+```mermaid
+flowchart LR
+    Q[Symbol]
+    Q --> G[Graph backend]
+    Q --> B[Deterministic lexical scan]
 
-It's the *validity-audit* pattern applied to tooling: a **deterministic floor**
-(grep — always correct for direct callers) + an **opaque richer layer** (the
-graph tool — transitive impact, risk ranking) + an **independent confirmation
-net** (the diff between them).
+    G --> GC[Caller files]
+    B --> BC[Caller files]
 
-Version 0.2 is designed for CI: it has stable exit codes, machine-readable
-output, explicit backend-failure handling, and support for Python, Rust, Go,
-TypeScript, JavaScript, and React JSX/TSX call sites.
+    GC --> C{Compare}
+    BC --> C
 
-## Why this matters (measured)
+    C --> P[PASS]
+    C --> F[FAIL<br/>Possible indexing gap]
+```
 
-I ran a graph-based impact tool (GitNexus 1.6.3) and a knowledge-graph MCP
-(codebase-memory-mcp 0.8.1) over two widely-used public Python libraries, then
-checked every top-level symbol's reported callers against grep ground truth:
+## Problem
 
-| Repo | Core files the graph indexer silently dropped | Impact answers provably incomplete (strict) / affected (broad upper bound) |
+Code-intelligence tools -- knowledge-graph indexers, LSP-backed "blast radius"
+analyzers, MCP servers that give AI agents a map of your codebase -- answer
+*"what breaks if I change this function?"*. But if the indexer silently drops a
+source file, every dependency edge through that file disappears. You get *"low
+risk, only one caller"* when the symbol is used across the core of your codebase.
+
+## 30-second example
+
+```
+Graph backend:
+
+caller_a.py
+caller_b.py
+
+Lexical baseline:
+
+caller_a.py
+caller_b.py
+caller_c.py
+
+FAIL
+
+Missing caller:
+caller_c.py
+```
+
+## How it works
+
+`impact-audited` cross-checks any graph tool's impact output against a
+deterministic lexical baseline -- a text scan for direct call sites.
+**The disagreement is the signal**: if the baseline finds a caller the graph
+missed, that edge is missing from the index, and you're told so loudly.
+
+The central idea is not grep.
+
+The central idea is that disagreement between two independent analyses is itself valuable evidence.
+
+Deterministic floor (grep, direct callers) + opaque richer layer (graph tool,
+transitive impact, risk ranking) + independent confirmation net (the diff).
+
+## Why it matters
+
+GitNexus 1.6.3 over two Python libraries, checked against a deterministic lexical baseline:
+
+| Repo | Files silently dropped | Demonstrably incomplete (strict / broad) |
 |---|---|---|
-| [`psf/requests`](https://github.com/psf/requests) | `models.py`, `sessions.py`, `utils.py` | **50%** (28/56 strict; 64% broad) |
-| [`ranaroussi/yfinance`](https://github.com/ranaroussi/yfinance) | `const.py`, `scrapers/history.py`, `scrapers/quote.py`, `utils.py` | **12%** (7/59 strict; 39% broad) |
+| [`psf/requests`](https://github.com/psf/requests) | `models.py`, `sessions.py`, `utils.py` | **50%** (28/56) / 64% |
+| [`ranaroussi/yfinance`](https://github.com/ranaroussi/yfinance) | `const.py`, `scrapers/history.py`, `scrapers/quote.py`, `utils.py` | **12%** (7/59) / 39% |
 
-Attribution is airtight: a symbol counts (strict tier) only when its definition
-lives in a file the indexer *kept* but grep finds a real call site — definition
-lines excluded — *inside a file the indexer's own logs report it failed to
-parse*. The node is in the graph; that edge cannot be. Example:
-`requests.utils.to_key_val_list` is reported as **LOW risk, one caller
-(`utils.py`)** — but `models.py` and `sessions.py`, the heart of the library,
-both call it. (That symbol is itself *defined* in a dropped file, i.e. broad
-tier — and the tool still answered rather than failing loudly, which is exactly
-why the broad tier is worth reporting.)
+codebase-memory-mcp 0.8.1 had no such gap on either repo. The problem isn't all graph
+tools -- it's that some skip files silently and you usually can't tell which.
+Full method: [`benchmark/RESULTS.md`](benchmark/RESULTS.md).
 
-Note the fairness bar: in my runs, **codebase-memory-mcp indexed every file on
-both repos with no such gap** (this comparison isn't automated in the reproduce
-script, which covers the GitNexus side). So this isn't "all graph tools lie" —
-it's that *some can skip files silently, and you usually can't tell which*.
-That's exactly why a cheap audit is worth wiring in. Full method + caveats:
-[`benchmark/RESULTS.md`](benchmark/RESULTS.md).
+## Quick Start
 
-## Supported languages
-
-The audit scans these extensions exactly:
-
-| Language / source form | Extensions |
-|---|---|
-| Python | `.py` |
-| Rust | `.rs` |
-| Go | `.go` |
-| TypeScript | `.ts`, `.tsx` |
-| JavaScript | `.js`, `.jsx`, `.mjs`, `.cjs` |
-
-For every language it detects textual `symbol(...)` call sites. In `.tsx` and
-`.jsx`, it also detects JSX component references such as `<Symbol />`.
-Full-line comments are excluded from call-site detection (`#` for Python,
-`//` for all other languages); trailing comments on code lines are preserved.
-Vendored and build directories (`node_modules`, `target`, `.venv`, etc.) are
-pruned symmetrically from both the text-scan floor and graph-output matching —
-so vendored call sites never appear as false omissions.
-
-## Install
-
-Python 3.9 or newer is required. The core tool uses only the standard library.
-
-Install the command from GitHub:
+Python 3.9+, standard library only.
 
 ```bash
-python -m pip install \
-  "git+https://github.com/klmtseng/impact-audited.git@main"
+python -m pip install "git+https://github.com/klmtseng/impact-audited.git@main"
 impact-audited --help
 ```
 
-Or use the single-file form:
+Single-file: `curl -O .../impact_audited.py && chmod +x impact_audited.py`. `[tokens]` extra for token accounting.
+
+## Output example
 
 ```bash
-curl -O https://raw.githubusercontent.com/klmtseng/impact-audited/main/impact_audited.py
-chmod +x impact_audited.py
-./impact_audited.py --help
-```
-
-Token accounting is optional:
-
-```bash
-python -m pip install "impact-audited[tokens] @ git+https://github.com/klmtseng/impact-audited.git@main"
-```
-
-## CLI examples
-
-```bash
-# Reliable direct-caller floor, with no graph backend:
-impact-audited to_key_val_list --path /path/to/requests
-
-# Audit a graph backend. {sym} is replaced with the shell-quoted symbol.
-# The backend must print caller file paths to stdout.
+# With graph backend:
 impact-audited to_key_val_list --path /path/to/requests \
   --graph 'gitnexus impact {sym} -r requests'
 
-# TypeScript / React example:
-impact-audited UserCard --path ./web \
-  --graph 'my-graph callers {sym} --format json'
-
-# Rust example: baseline-only floor in a Cargo workspace.
-# Doc comments (/// run_input(...)) are excluded; floor found 3
-# (one an unrelated same-name method in a different module).
-impact-audited run_input --path /path/to/noob-cli
-
-# Machine-readable output:
-impact-audited my_func --path . --graph 'my-graph callers {sym}' --json
+# Baseline-only:
+impact-audited to_key_val_list --path /path/to/requests
 ```
 
-Every `--graph` template must contain **exactly one literal `{sym}`
-placeholder**. The CLI replaces it with the shell-quoted audited symbol before
-execution. A template containing zero or multiple `{sym}` placeholders is
-invalid configuration and exits with code `4` without running the backend.
+`--graph` requires exactly one `{sym}` placeholder.
+Exit: `0` pass / `2` missing callers / `3` backend failed / `4` invalid config.
+`--json` retains v0.1 fields. CI snippet: [`benchmark/RESULTS.md`](benchmark/RESULTS.md).
 
-Human-readable output always includes the audited symbol, baseline caller
-count, graph caller count, missing callers, and a final `PASS` or `FAIL`.
-JSON output includes the same information and retains the v0.1 field names for
-backward compatibility.
+## Benchmark
 
-### Exit codes
+`psf/requests`: **50%** (28/56 strict), 64% broad. `ranaroussi/yfinance`: **12%** (7/59 strict), 39% broad.
+GitNexus 1.6.3 / codebase-memory-mcp 0.8.1 (2026-06). Full methodology: [`benchmark/RESULTS.md`](benchmark/RESULTS.md).
 
-| Code | Meaning |
-|---:|---|
-| `0` | Audit passed, or baseline-only scan completed |
-| `2` | Graph backend omitted one or more detectable callers |
-| `3` | Graph backend failed, returned non-zero, or produced no stdout |
-| `4` | Invalid configuration or CLI input |
+## Limitations
 
-### Shell security
-
-For backward compatibility, `--graph` remains a shell command template and can
-use quoting, redirection, or pipelines. The audited symbol is shell-quoted
-before substitution, but the template itself is executable code. **Never build
-`--graph` from untrusted pull-request content, environment variables, or user
-input.** Keep the command in trusted repository or organization CI
-configuration.
-
-## CI usage
-
-The exit codes can fail a job on omissions, backend failures, and invalid
-configuration without wrapper logic:
-
-```yaml
-name: dependency-edge-audit
-on: [pull_request]
-
-jobs:
-  audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: python -m pip install "git+https://github.com/klmtseng/impact-audited.git@main"
-      - run: npm install --global gitnexus
-      - run: gitnexus analyze "$GITHUB_WORKSPACE" --name ci-repo
-      - run: impact-audited my_symbol --path . --graph 'gitnexus impact {sym} -r ci-repo' --json
-```
-
-Run one audit command per symbol that your CI policy requires. Version 0.2 does
-not choose changed symbols or perform transitive analysis.
-
-## Known limitations
-
-- This is a conservative text scan, not a parser. Same-named methods, comments,
-  strings, and method declarations that resemble calls can cause false
-  positives. Multiline or indirect calls can be missed.
+- Conservative text scan, not a parser. Same-named methods, comments, strings,
+  and method declarations can cause false positives. Multiline or indirect calls
+  can be missed.
 - JSX detection covers direct `<Symbol />` / `<Symbol>` references in `.jsx`
   and `.tsx`; aliases, re-exports, dynamically selected components, and
   lowercase intrinsic elements are not resolved semantically.
-- The audit checks direct caller files only. It does not implement transitive
-  impact analysis, LSP integration, tree-sitter semantic analysis, or
-  confidence scoring.
-- The graph backend must print source paths to stdout. Paths may be
-  repo-root-relative or absolute; absolute paths are normalized to
-  root-relative before comparison. A bare basename is accepted only when
-  unique in the repository. Non-zero backend exit status is always a backend
-  failure, even if partial stdout was produced.
+- Direct caller files only. No transitive impact, LSP integration, tree-sitter
+  semantic analysis, or confidence scoring.
+- Graph backend must print source paths to stdout. Repo-root-relative or
+  absolute paths are both accepted; bare basenames require uniqueness in the
+  repo. Non-zero backend exit status is always a backend failure.
 - `.git`, dependency, virtual-environment, cache, build, and distribution
   directories are skipped.
 - Benchmark findings are for the tool versions tested and may already be fixed
   upstream; the point is the verification pattern, not any one product.
 
+## FAQ
+
+**Why not just use grep?** Grep gives the floor; the graph tool gives transitive
+impact and risk ranking. Running only one side means missing what the other sees.
+
+**What about false positives?** Same-named methods, string literals, and
+commented-out code can match. Inspect the flagged file; a FAIL you can explain
+beats a silent omission you don't know about.
+
+**Which languages are supported?** Python, Rust, Go, TypeScript (`.ts`, `.tsx`),
+JavaScript (`.js`, `.jsx`, `.mjs`, `.cjs`). JSX component references (`<Symbol />`)
+are detected in `.tsx`/`.jsx` in addition to call sites.
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT -- see [LICENSE](LICENSE).

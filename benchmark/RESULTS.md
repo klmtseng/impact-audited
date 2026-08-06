@@ -88,6 +88,55 @@ tokens per query (grep output + graph output).
 - The aggregate percentages are the share of symbols whose impact answer must be
   incomplete; they are not a claim about any single query's severity.
 
+## Supported languages (migrated from README)
+
+The audit scans these extensions:
+
+| Language / source form | Extensions |
+|---|---|
+| Python | `.py` |
+| Rust | `.rs` |
+| Go | `.go` |
+| TypeScript | `.ts`, `.tsx` |
+| JavaScript | `.js`, `.jsx`, `.mjs`, `.cjs` |
+
+For every language it detects textual `symbol(...)` call sites. In `.tsx` and `.jsx`,
+it also detects JSX component references such as `<Symbol />`. Full-line comments are
+excluded (`#` for Python, `//` for all other languages). Vendored and build directories
+(`node_modules`, `target`, `.venv`, etc.) are pruned symmetrically from both the
+text-scan baseline and graph-output matching.
+
+## CI usage example (migrated from README)
+
+```yaml
+name: dependency-edge-audit
+on: [pull_request]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install "git+https://github.com/klmtseng/impact-audited.git@main"
+      - run: npm install --global gitnexus
+      - run: gitnexus analyze "$GITHUB_WORKSPACE" --name ci-repo
+      - run: impact-audited my_symbol --path . --graph 'gitnexus impact {sym} -r ci-repo' --json
+```
+
+Run one audit command per symbol that your CI policy requires. Version 0.2 does not
+choose changed symbols or perform transitive analysis.
+
+### Shell security note
+
+For backward compatibility, `--graph` remains a shell command template and can use
+quoting, redirection, or pipelines. The audited symbol is shell-quoted before
+substitution, but the template itself is executable code. **Never build `--graph` from
+untrusted pull-request content, environment variables, or user input.** Keep the
+command in trusted repository or organization CI configuration.
+
 ## Reproduce
 
 ```bash
