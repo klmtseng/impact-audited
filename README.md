@@ -78,7 +78,7 @@ Python 3.9+, standard library only.
 
 ```bash
 # Install pinned release (recommended)
-python -m pip install "git+https://github.com/klmtseng/impact-audited.git@v0.2.0"
+python -m pip install "git+https://github.com/klmtseng/impact-audited.git@v0.2.1"
 
 # Development install (latest main)
 python -m pip install "git+https://github.com/klmtseng/impact-audited.git@main"
