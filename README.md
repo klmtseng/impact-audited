@@ -27,7 +27,10 @@ inspection but is missing callers you care about.
 
 ## 30-second example
 
-```
+A fake graph backend reports two callers. The lexical floor finds three.
+The disagreement is the product.
+
+```text
 Graph backend:
 
 caller_a.py
@@ -44,6 +47,23 @@ FAIL
 Missing caller:
 caller_c.py
 ```
+
+Run it — no GitNexus, no network, no extra dependencies:
+
+```bash
+git clone https://github.com/klmtseng/impact-audited.git
+cd impact-audited
+python3 examples/silent-gap/run_demo.py
+```
+
+Last line:
+
+```text
+Demo PASS: expected FAIL reproduced (missing caller_c.py)
+```
+
+The audit correctly returns a blocking FAIL for the omitted caller; the demo
+script passes because that expected miss was reproduced.
 
 ## How it works
 
@@ -72,17 +92,21 @@ codebase-memory-mcp 0.8.1 had no such gap on either repo. The problem isn't all 
 tools -- it's that some skip files silently and you usually can't tell which.
 Full method: [`benchmark/RESULTS.md`](benchmark/RESULTS.md).
 
+These numbers are for the tool versions tested and may already be fixed upstream.
+The transferable result is the verification pattern, not a verdict on a product.
+
 ## Quick Start
 
 Python 3.9+, standard library only.
 
 ```bash
 # Install pinned release (recommended)
-python -m pip install "git+https://github.com/klmtseng/impact-audited.git@v0.2.1"
+python -m pip install "git+https://github.com/klmtseng/impact-audited.git@v0.2.2"
 
 # Development install (latest main)
 python -m pip install "git+https://github.com/klmtseng/impact-audited.git@main"
 
+impact-audited --version
 impact-audited --help
 ```
 
@@ -106,6 +130,8 @@ Exit: `0` pass / `2` missing callers / `3` backend failed / `4` invalid config.
 ## Benchmark
 
 Full methodology and raw numbers: [`benchmark/RESULTS.md`](benchmark/RESULTS.md).
+`benchmark/reproduce.sh` requires GitNexus 1.6.3 (the version used for the published
+numbers). Set `REQUIRED_GITNEXUS` only when measuring a different version on purpose.
 
 ## Limitations
 
