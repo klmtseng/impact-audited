@@ -19,6 +19,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+__version__ = "0.2.2"
+
 EXIT_PASS = 0
 EXIT_OMISSION = 2
 EXIT_BACKEND_FAILURE = 3
@@ -243,6 +245,12 @@ def build_parser():
         ),
     )
     parser.add_argument("--json", action="store_true", help="machine-readable output")
+    parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
     return parser
 
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "impact-audited"
-version = "0.2.0"
+version = "0.2.2"
 description = "Verify graph-backend callers against a deterministic text-scan floor"
 readme = "README.md"
 requires-python = ">=3.9"

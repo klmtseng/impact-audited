@@ -11,6 +11,33 @@
 #   ranaroussi/yfinance  38c73ce33fb1ee77d37a0998c95c06e60356298e
 set -euo pipefail
 cd "$(dirname "$0")"
+
+REQUIRED_GITNEXUS="${REQUIRED_GITNEXUS:-1.6.3}"
+
+if ! command -v gitnexus >/dev/null 2>&1; then
+  echo "error: gitnexus not found on PATH" >&2
+  echo "install the version used for published numbers:" >&2
+  echo "  npm i -g gitnexus@${REQUIRED_GITNEXUS}" >&2
+  exit 1
+fi
+
+gitnexus_version() {
+  local raw=""
+  raw="$(gitnexus --version 2>/dev/null || true)"
+  if [ -z "$raw" ]; then
+    raw="$(gitnexus -v 2>/dev/null || true)"
+  fi
+  echo "$raw" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1
+}
+
+FOUND="$(gitnexus_version || true)"
+if [ "$FOUND" != "$REQUIRED_GITNEXUS" ]; then
+  echo "error: published numbers require gitnexus ${REQUIRED_GITNEXUS} (found: ${FOUND:-unknown})" >&2
+  echo "install: npm i -g gitnexus@${REQUIRED_GITNEXUS}" >&2
+  echo "to measure a different version on purpose: REQUIRED_GITNEXUS=<ver> $0" >&2
+  exit 1
+fi
+
 mkdir -p repos && cd repos
 
 declare -A REPOS=(
