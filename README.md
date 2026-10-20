@@ -101,7 +101,7 @@ Python 3.9+, standard library only.
 
 ```bash
 # Install pinned release (recommended)
-python -m pip install "git+https://github.com/klmtseng/impact-audited.git@v0.2.3"
+python -m pip install "git+https://github.com/klmtseng/impact-audited.git@v0.3.0"
 
 # Development install (latest main)
 python -m pip install "git+https://github.com/klmtseng/impact-audited.git@main"
@@ -125,13 +125,13 @@ impact-audited to_key_val_list --path /path/to/requests
 
 `--graph` requires exactly one `{sym}` placeholder.
 Exit: `0` pass / `2` missing callers / `3` backend failed / `4` invalid config /
-`5` unverified (new in 0.2.3; `2` takes precedence over `5`).
+`5` unverified (new in 0.3.0; `2` takes precedence over `5`).
 `--json` retains v0.1 fields and adds `audit_verdict` (`PASS` / `OMISSION` /
 `UNVERIFIED` / `BASELINE_ONLY`), `unverified_callers`, and `graph_format`;
 `final_status` is `FAIL` for both omission and unverified.
 CI snippet: [`benchmark/RESULTS.md`](benchmark/RESULTS.md).
 
-### When is it a PASS? (fail-closed since 0.2.3)
+### When is it a PASS? (fail-closed since 0.3.0)
 
 PASS means every baseline caller file was shown to be covered by the graph backend.
 Anything the audit cannot prove is not a PASS:
@@ -180,7 +180,7 @@ numbers). Set `REQUIRED_GITNEXUS` only when measuring a different version on pur
 - "Declares the symbol" (used for the unverified rule) is a regex heuristic
   (`def`/`function`/`const`/`class`/`fn`/`func`/`type`/`interface`, `sym =`,
   `sym:` ...). It errs towards more unverified results; a declaration form it does
-  not recognise falls back to the pre-0.2.3 text behaviour for that file.
+  not recognise falls back to the pre-0.3.0 text behaviour for that file.
 - The default failure markers are English words; a symbol literally named
   `ambiguous`, or a backend that prints those words in a successful result, needs
   `--no-default-fail-markers` (ideally with your own `--graph-fail-pattern`).

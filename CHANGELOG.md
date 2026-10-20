@@ -1,6 +1,16 @@
 # Changelog
 
-## [0.2.3] — 2026-10-20
+## [0.3.0] — 2026-10-20
+
+### Upgrade note
+
+This release makes the PASS rule stricter. A run that passed on 0.2.x in the
+default text graph format can now exit `5` (UNVERIFIED) when a caller sits in
+the file that defines the symbol, or exit `3` when the backend answers
+"ambiguous" / "not found" with exit status 0. If you gate CI on exit `0`, expect
+new failures; both are cases the old version wrongly passed. With GitNexus, use
+`--graph-format gitnexus` so same-file callers can be proven instead of being
+reported as unverified.
 
 ### Fixed
 

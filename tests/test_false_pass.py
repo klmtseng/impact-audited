@@ -1,4 +1,4 @@
-"""Regression tests for the two v0.2.2 false-PASS holes (fixed in v0.2.3).
+"""Regression tests for the two v0.2.2 false-PASS holes (fixed in v0.3.0).
 
 1. Text-format backends echo the audited symbol's own definition file. A
    same-file caller must not be counted as covered just because that path

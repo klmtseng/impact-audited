@@ -9,7 +9,7 @@ Vendored/build dirs (node_modules/target/.venv/...) are pruned from both
 detection and the floor so that asymmetric pruning never turns vendored call
 sites into false AUDIT FAILED.
 
-Fail-closed rules (v0.2.3):
+Fail-closed rules (v0.3.0):
 - A graph backend that exits 0 but reports an error envelope ("ambiguous",
   "not found", a JSON ``error`` key, ...) is a backend failure (exit 3), not an
   empty caller list. See ``backend_failure_reason``.
@@ -29,7 +29,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-__version__ = "0.2.3"
+__version__ = "0.3.0"
 
 EXIT_PASS = 0
 EXIT_OMISSION = 2
