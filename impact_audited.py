@@ -8,6 +8,16 @@ signatures are NOT excluded (known over-count sources, same as plain grep).
 Vendored/build dirs (node_modules/target/.venv/...) are pruned from both
 detection and the floor so that asymmetric pruning never turns vendored call
 sites into false AUDIT FAILED.
+
+Fail-closed rules (v0.2.3):
+- A graph backend that exits 0 but reports an error envelope ("ambiguous",
+  "not found", a JSON ``error`` key, ...) is a backend failure (exit 3), not an
+  empty caller list. See ``backend_failure_reason``.
+- In the default ``text`` graph format a path mention cannot distinguish "this
+  file calls the symbol" from "this is where the symbol is defined" (tools echo
+  the target's own location). A baseline caller that also *declares* the symbol
+  (same-file call) is therefore UNVERIFIED (exit 5) unless a structured graph
+  format (``lines`` or ``gitnexus``) lists it as a caller.
 """
 
 import argparse
@@ -19,12 +29,26 @@ import subprocess
 import sys
 from pathlib import Path
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 EXIT_PASS = 0
 EXIT_OMISSION = 2
 EXIT_BACKEND_FAILURE = 3
 EXIT_INVALID_CONFIG = 4
+EXIT_UNVERIFIED = 5
+
+GRAPH_FORMATS = ("text", "lines", "gitnexus")
+
+# Default failure markers, matched in backend stdout as standalone words (not as
+# part of a path such as ``src/ambiguous.ts``). Disable with
+# --no-default-fail-markers; add more with --graph-fail-pattern.
+_TOKEN_LEFT = r"(?<![\w./\\-])"
+_TOKEN_RIGHT = r"(?![\w./\\-])"
+DEFAULT_FAILURE_MARKERS = (
+    re.compile(rf"(?i){_TOKEN_LEFT}ambiguous{_TOKEN_RIGHT}"),
+    re.compile(rf"(?i){_TOKEN_LEFT}not\s+found{_TOKEN_RIGHT}"),
+)
+JSON_FAILURE_STATUSES = {"ambiguous", "error", "failed", "failure", "not_found", "not found"}
 
 SUPPORTED_EXTENSIONS = (".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".rs", ".go")
 JSX_EXTENSIONS = {".tsx", ".jsx"}
@@ -191,7 +215,161 @@ def baseline_caller_files(symbol, root):
     return callers, "\n".join(matched_lines)
 
 
-def run_graph_backend(template, symbol, root):
+def _is_declaration_line(symbol, suffix, line):
+    """Broader than ``_is_definition_line``: any line that declares ``symbol``.
+
+    Used only to decide whether a baseline caller file is also the symbol's own
+    definition file (where a graph tool's echo of the target location would be
+    indistinguishable from a caller entry in plain-text output). Over-matching
+    here makes the audit stricter (more UNVERIFIED), never more lenient.
+    """
+    if _is_definition_line(symbol, suffix, line):
+        return True
+    escaped = re.escape(symbol)
+    keyword = (
+        r"\b(?:const|let|var|function\*?|class|interface|type|enum|namespace|"
+        r"def|fn|struct|trait|mod|func|static|impl)\s+"
+    )
+    if re.search(rf"{keyword}{escaped}\b", line):
+        return True
+    if suffix == ".go" and re.search(rf"\bfunc\s*\([^)]*\)\s*{escaped}\s*\(", line):
+        return True
+    # ``sym = ...``, ``sym := ...``, ``sym: ...`` (class fields, object methods,
+    # Python module-level assignments), with optional modifiers / ``self.``.
+    return bool(
+        re.search(
+            rf"^\s*(?:(?:export|default|public|private|protected|static|readonly|async|pub)\s+)*"
+            rf"(?:self\.|this\.)?{escaped}\s*(?::=|=(?!=)|:(?!:))",
+            line,
+        )
+    )
+
+
+def declaration_files(symbol, root):
+    """Return files that appear to declare ``symbol`` (see ``_is_declaration_line``)."""
+    found = set()
+    for path, relative in source_files(root):
+        suffix = path.suffix.lower()
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError as exc:
+            raise ValueError(f"cannot read source file {relative}: {exc}") from exc
+        for line in lines:
+            if _is_whole_line_comment(suffix, line):
+                continue
+            if _is_declaration_line(symbol, suffix, line):
+                found.add(relative)
+                break
+    return found
+
+
+def backend_failure_reason(stdout, stderr, extra_patterns=(), use_defaults=True):
+    """Return why an exit-0 backend result is actually a failure, or None.
+
+    Checks, in order:
+    1. (defaults) stdout is a JSON object with a truthy ``error`` key, or a
+       ``status`` in JSON_FAILURE_STATUSES (e.g. GitNexus ``"ambiguous"``).
+    2. (defaults) stdout contains a standalone DEFAULT_FAILURE_MARKERS word.
+    3. any user ``--graph-fail-pattern`` regex matches stdout or stderr.
+    """
+    if use_defaults:
+        try:
+            data = json.loads(stdout)
+        except ValueError:
+            data = None
+        if isinstance(data, dict):
+            if data.get("error"):
+                return f"backend reported error: {data['error']}"
+            status = data.get("status")
+            if isinstance(status, str) and status.strip().lower() in JSON_FAILURE_STATUSES:
+                message = data.get("message")
+                return f"backend reported status {status!r}" + (f": {message}" if message else "")
+        for marker in DEFAULT_FAILURE_MARKERS:
+            match = marker.search(stdout)
+            if match:
+                return f"backend output contains failure marker {match.group(0)!r}"
+    for pattern in extra_patterns:
+        for stream_name, text in (("stdout", stdout), ("stderr", stderr)):
+            match = pattern.search(text)
+            if match:
+                return (
+                    f"backend {stream_name} matches --graph-fail-pattern "
+                    f"{pattern.pattern!r} ({match.group(0)!r})"
+                )
+    return None
+
+
+def gitnexus_caller_paths(stdout):
+    """Parse ``gitnexus impact`` JSON; return the caller file paths it lists.
+
+    Only ``byDepth`` entries count as callers; ``target`` (the symbol's own
+    location) and ``candidates`` (ambiguity lists) never do. Anything other
+    than a well-formed successful impact result is a BackendFailure.
+    """
+    try:
+        data = json.loads(stdout)
+    except ValueError as exc:
+        raise BackendFailure(f"--graph-format gitnexus: stdout is not JSON ({exc})") from exc
+    if not isinstance(data, dict):
+        raise BackendFailure("--graph-format gitnexus: stdout is not a JSON object")
+    if data.get("error"):
+        raise BackendFailure(f"gitnexus reported error: {data['error']}")
+    status = data.get("status")
+    if status not in (None, "ok", "success"):
+        message = data.get("message")
+        raise BackendFailure(
+            f"gitnexus reported status {status!r}" + (f": {message}" if message else "")
+        )
+    by_depth = data.get("byDepth")
+    if not isinstance(by_depth, dict):
+        raise BackendFailure("--graph-format gitnexus: result has no 'byDepth' object")
+    paths = []
+    for depth, entries in by_depth.items():
+        if not isinstance(entries, list):
+            raise BackendFailure(f"--graph-format gitnexus: byDepth[{depth!r}] is not a list")
+        for entry in entries:
+            file_path = entry.get("filePath") if isinstance(entry, dict) else None
+            if not isinstance(file_path, str) or not file_path.strip():
+                raise BackendFailure(
+                    f"--graph-format gitnexus: byDepth[{depth!r}] entry has no filePath"
+                )
+            paths.append(file_path.strip())
+    impacted = data.get("impactedCount")
+    if isinstance(impacted, int) and impacted != len(paths):
+        raise BackendFailure(
+            f"--graph-format gitnexus: impactedCount={impacted} but byDepth lists "
+            f"{len(paths)} entries (truncated or unrecognised output)"
+        )
+    return paths
+
+
+def graph_caller_files(graph_raw, root, graph_format):
+    """Map backend stdout to repo-relative caller files for the chosen format."""
+    if graph_format == "text":
+        return files_in_text(graph_raw, root)
+    if graph_format == "gitnexus":
+        paths = gitnexus_caller_paths(graph_raw)
+    else:  # "lines": one caller path per non-empty line, authoritative
+        paths = [line.strip() for line in graph_raw.splitlines() if line.strip()]
+    found = set()
+    for path_text in paths:
+        matched = files_in_text(path_text, root)
+        if matched:
+            found |= matched
+            continue
+        candidate = Path(path_text)
+        if not candidate.is_absolute():
+            candidate = root / candidate
+        if not candidate.exists():
+            raise BackendFailure(
+                f"--graph-format {graph_format}: caller path {path_text!r} is not a file "
+                "in the repository"
+            )
+        # Existing file with an unsupported extension: outside the audit's scope.
+    return found
+
+
+def run_graph_backend(template, symbol, root, fail_patterns=(), default_markers=True):
     """Run the legacy shell-template backend at one documented trust boundary.
 
     SECURITY: ``shell=True`` is retained because ``--graph`` has historically
@@ -225,6 +403,14 @@ def run_graph_backend(template, symbol, root):
             stdout=proc.stdout,
             stderr=proc.stderr,
         )
+    reason = backend_failure_reason(proc.stdout, proc.stderr, fail_patterns, default_markers)
+    if reason:
+        raise BackendFailure(
+            f"graph backend exited 0 but did not return a usable result ({reason})",
+            returncode=proc.returncode,
+            stdout=proc.stdout,
+            stderr=proc.stderr,
+        )
     return proc.stdout
 
 
@@ -232,6 +418,23 @@ def build_parser():
     parser = AuditArgumentParser(
         prog="impact-audited",
         description="Cross-check a code-graph impact tool against a text-scan floor.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "PASS rule: every baseline caller file must be shown to be covered by the\n"
+            "graph backend. In --graph-format text, a baseline caller that also declares\n"
+            "the symbol (same-file call) cannot be told apart from the backend echoing\n"
+            "the symbol's own location, so it is UNVERIFIED unless a structured format\n"
+            "(lines, gitnexus) lists it as a caller.\n"
+            "\n"
+            "Backend failure: non-zero exit, empty stdout, or exit 0 with an error\n"
+            "envelope (JSON 'error' key / failure 'status', or the standalone words\n"
+            "'ambiguous' / 'not found' in stdout; see --no-default-fail-markers and\n"
+            "--graph-fail-pattern).\n"
+            "\n"
+            "Exit codes: 0 PASS; 2 missing callers (FAIL); 3 graph backend failed;\n"
+            "4 invalid configuration; 5 UNVERIFIED (no missing callers, but at least one\n"
+            "caller could not be confirmed). 2 takes precedence over 5."
+        ),
     )
     parser.add_argument("symbol", help="function, class, method, or JSX component name")
     parser.add_argument("--path", default=".", help="repository root (default: cwd)")
@@ -242,6 +445,35 @@ def build_parser():
             "trusted graph-tool shell command template containing exactly one literal "
             "'{sym}' placeholder; it is replaced with the shell-quoted symbol and "
             "stdout is scanned for source paths"
+        ),
+    )
+    parser.add_argument(
+        "--graph-format",
+        choices=GRAPH_FORMATS,
+        default="text",
+        help=(
+            "how to read backend stdout: 'text' (default) scans for any source path; "
+            "same-file callers are UNVERIFIED. 'lines' treats every non-empty line as "
+            "one caller path (authoritative). 'gitnexus' parses `gitnexus impact` JSON "
+            "and counts only byDepth entries as callers"
+        ),
+    )
+    parser.add_argument(
+        "--graph-fail-pattern",
+        action="append",
+        default=[],
+        metavar="REGEX",
+        help=(
+            "extra Python regex; if it matches backend stdout or stderr the backend "
+            "is treated as failed (exit 3). Repeatable"
+        ),
+    )
+    parser.add_argument(
+        "--no-default-fail-markers",
+        action="store_true",
+        help=(
+            "disable the built-in exit-0 failure detection (JSON error/status envelope, "
+            "standalone 'ambiguous' / 'not found' in stdout)"
         ),
     )
     parser.add_argument("--json", action="store_true", help="machine-readable output")
@@ -322,6 +554,22 @@ def main(argv=None):
                 f"(found {placeholder_count})",
                 args.json,
             )
+    elif (
+        args.graph_format != "text" or args.graph_fail_pattern or args.no_default_fail_markers
+    ):
+        return _configuration_error(
+            "--graph-format / --graph-fail-pattern / --no-default-fail-markers "
+            "require --graph",
+            args.json,
+        )
+    fail_patterns = []
+    for pattern in args.graph_fail_pattern:
+        try:
+            fail_patterns.append(re.compile(pattern))
+        except re.error as exc:
+            return _configuration_error(
+                f"invalid --graph-fail-pattern {pattern!r}: {exc}", args.json
+            )
 
     try:
         baseline_files, baseline_raw = baseline_caller_files(symbol, root)
@@ -331,16 +579,36 @@ def main(argv=None):
     graph_files = None
     graph_raw = ""
     missing = []
+    unverified = []
     if args.graph:
         try:
-            graph_raw = run_graph_backend(args.graph, symbol, root)
+            graph_raw = run_graph_backend(
+                args.graph,
+                symbol,
+                root,
+                fail_patterns=fail_patterns,
+                default_markers=not args.no_default_fail_markers,
+            )
+            graph_files = graph_caller_files(graph_raw, root, args.graph_format)
         except BackendFailure as exc:
             return _backend_error(symbol, exc, baseline_files, args.json)
-        try:
-            graph_files = files_in_text(graph_raw, root)
         except OSError as exc:
             return _configuration_error(str(exc), args.json)
         missing = sorted(baseline_files - graph_files)
+        if args.graph_format == "text":
+            try:
+                declared_in = declaration_files(symbol, root)
+            except (OSError, ValueError) as exc:
+                return _configuration_error(str(exc), args.json)
+            unverified = sorted((baseline_files & graph_files) & declared_in)
+
+    if missing:
+        verdict = "OMISSION"
+    elif unverified:
+        verdict = "UNVERIFIED"
+    else:
+        verdict = "PASS"
+    final_status = "PASS" if verdict == "PASS" else "FAIL"
 
     graph_count = len(graph_files) if graph_files is not None else None
     token_count = None
@@ -356,13 +624,17 @@ def main(argv=None):
         "graph_caller_count": graph_count,
         "missing_caller_count": len(missing),
         "missing_callers": missing,
-        "final_status": "FAIL" if missing else "PASS",
+        "unverified_caller_count": len(unverified),
+        "unverified_callers": unverified,
+        "audit_verdict": verdict if args.graph else "BASELINE_ONLY",
+        "graph_format": args.graph_format if args.graph else None,
+        "final_status": final_status,
         # Backward-compatible v0.1 fields:
         "grep_caller_files": sorted(baseline_files),
         "graph_caller_files": sorted(graph_files) if graph_files is not None else None,
         "omitted_by_graph": missing,
         "complete_caller_files": sorted(baseline_files | (graph_files or set())),
-        "audit_pass": (not missing) if args.graph else None,
+        "audit_pass": (verdict == "PASS") if args.graph else None,
         "approx_tokens": token_count,
     }
 
@@ -374,13 +646,28 @@ def main(argv=None):
         print(f"Baseline caller count: {len(baseline_files)}")
         print(f"Graph caller count: {graph_count if graph_count is not None else 'N/A'}")
         print(f"Missing callers ({len(missing)}): {missing}")
-        print(f"Final: {'FAIL' if missing else 'PASS'}")
+        if unverified:
+            print(
+                f"Unverified callers ({len(unverified)}): {unverified} "
+                "(file declares the symbol; a path mention in text output cannot prove "
+                "the same-file call is covered - use --graph-format lines/gitnexus)"
+            )
+        if verdict == "UNVERIFIED":
+            print("Final: FAIL (UNVERIFIED)")
+        else:
+            print(f"Final: {final_status}")
         if not args.graph:
             print("Note: baseline-only mode; no graph backend was audited.")
         if token_count:
             print(f"Approximate tokens: {token_count}")
 
-    return EXIT_OMISSION if args.graph and missing else EXIT_PASS
+    if not args.graph:
+        return EXIT_PASS
+    if verdict == "OMISSION":
+        return EXIT_OMISSION
+    if verdict == "UNVERIFIED":
+        return EXIT_UNVERIFIED
+    return EXIT_PASS
 
 
 if __name__ == "__main__":
