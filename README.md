@@ -101,7 +101,7 @@ Python 3.9+, standard library only.
 
 ```bash
 # Install pinned release (recommended)
-python -m pip install "git+https://github.com/klmtseng/impact-audited.git@v0.2.2"
+python -m pip install "git+https://github.com/klmtseng/impact-audited.git@v0.3.0"
 
 # Development install (latest main)
 python -m pip install "git+https://github.com/klmtseng/impact-audited.git@main"
@@ -124,8 +124,39 @@ impact-audited to_key_val_list --path /path/to/requests
 ```
 
 `--graph` requires exactly one `{sym}` placeholder.
-Exit: `0` pass / `2` missing callers / `3` backend failed / `4` invalid config.
-`--json` retains v0.1 fields. CI snippet: [`benchmark/RESULTS.md`](benchmark/RESULTS.md).
+Exit: `0` pass / `2` missing callers / `3` backend failed / `4` invalid config /
+`5` unverified (new in 0.3.0; `2` takes precedence over `5`).
+`--json` retains v0.1 fields and adds `audit_verdict` (`PASS` / `OMISSION` /
+`UNVERIFIED` / `BASELINE_ONLY`), `unverified_callers`, and `graph_format`;
+`final_status` is `FAIL` for both omission and unverified.
+CI snippet: [`benchmark/RESULTS.md`](benchmark/RESULTS.md).
+
+### When is it a PASS? (fail-closed since 0.3.0)
+
+PASS means every baseline caller file was shown to be covered by the graph backend.
+Anything the audit cannot prove is not a PASS:
+
+- **Backend errors that exit 0 are backend failures (exit `3`).** Besides a non-zero
+  exit or empty stdout, the run fails when stdout is a JSON object with a truthy
+  `error` key or a `status` such as `ambiguous` / `not_found`, or when stdout contains
+  the standalone words `ambiguous` or `not found` (not as part of a path).
+  `--no-default-fail-markers` turns these built-in checks off;
+  `--graph-fail-pattern REGEX` (repeatable) adds your own, checked against stdout and stderr.
+- **Same-file callers need positive evidence.** In the default `--graph-format text`,
+  any source path in stdout counts as a caller, so a tool that echoes the audited
+  symbol's own location would "cover" a call made inside the defining file. A baseline
+  caller that also declares the symbol is therefore reported as **unverified**
+  (exit `5`, `Final: FAIL (UNVERIFIED)`). Use a structured format to verify it:
+  - `--graph-format lines`: every non-empty stdout line is one caller path; a line
+    that is not a file in the repository is a backend failure.
+  - `--graph-format gitnexus`: parses `gitnexus impact` JSON; only `byDepth[*].filePath`
+    entries count as callers (`target` and ambiguity `candidates` never do), and an
+    `impactedCount` that disagrees with the listed entries is a backend failure.
+
+```bash
+impact-audited mySymbol --path . --graph-format gitnexus \
+  --graph 'gitnexus impact {sym} -r my-repo'
+```
 
 ## Benchmark
 
@@ -146,6 +177,13 @@ numbers). Set `REQUIRED_GITNEXUS` only when measuring a different version on pur
 - Graph backend must print source paths to stdout. Repo-root-relative or
   absolute paths are both accepted; bare basenames require uniqueness in the
   repo. Non-zero backend exit status is always a backend failure.
+- "Declares the symbol" (used for the unverified rule) is a regex heuristic
+  (`def`/`function`/`const`/`class`/`fn`/`func`/`type`/`interface`, `sym =`,
+  `sym:` ...). It errs towards more unverified results; a declaration form it does
+  not recognise falls back to the pre-0.3.0 text behaviour for that file.
+- The default failure markers are English words; a symbol literally named
+  `ambiguous`, or a backend that prints those words in a successful result, needs
+  `--no-default-fail-markers` (ideally with your own `--graph-fail-pattern`).
 - `.git`, dependency, virtual-environment, cache, build, and distribution
   directories are skipped.
 - Benchmark findings are for the tool versions tested and may already be fixed

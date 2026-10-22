@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "impact-audited"
-version = "0.2.2"
+version = "0.3.0"
 description = "Verify graph-backend callers against a deterministic text-scan floor"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -37,3 +37,8 @@ target-version = "py39"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+# Keep `python -m pytest` on this project's tests; benchmark/repos/ holds
+# gitignored third-party clones with their own `tests` packages.
+testpaths = ["tests"]
